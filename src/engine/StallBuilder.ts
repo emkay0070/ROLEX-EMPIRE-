@@ -8,13 +8,13 @@ export interface StallRig {
   servingTrayPos: THREE.Vector3;
   panChapati: THREE.Mesh;
   panOmelette: THREE.Mesh;
-  panRolled: THREE.Group;
-  trayRolled: THREE.Group;
+  panRolled: THREE.Object3D;
+  trayRolled: THREE.Object3D;
   emberGlow: THREE.Mesh;
   stoveLight: THREE.PointLight;
   bulbLight: THREE.PointLight;
   jumaGroup: THREE.Group;
-  jumaRightArm: THREE.Mesh;
+  jumaRightArm: THREE.Object3D | null;
   canopyExtension: THREE.Group;
   dualBurnerRing: THREE.Mesh;
   signboardBanner: THREE.Mesh;
@@ -308,44 +308,72 @@ export async function buildKampalaRolexStall(
   stallGroup.add(charcoalSack);
 
   // Menu Board Easel on right front side of stall
-  const menuGroup = new THREE.Group();
+  const menuGroup = await assetManager.loadOrBuild('furn_menu_board', () => {
+    const mg = new THREE.Group();
+    const easelLeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.35, 0.06), frameWoodMat);
+    easelLeg1.position.set(-0.28, 0.66, 0);
+    easelLeg1.rotation.x = -0.12;
+    mg.add(easelLeg1);
+    const easelLeg2 = easelLeg1.clone();
+    easelLeg2.position.x = 0.28;
+    mg.add(easelLeg2);
+    const menuPanel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.84, 0.92, 0.05),
+      new THREE.MeshStandardMaterial({ map: textures.menuBoard, roughness: 0.6 }),
+    );
+    menuPanel.position.set(0, 1.02, 0.05);
+    menuPanel.castShadow = true;
+    mg.add(menuPanel);
+    return mg;
+  });
   menuGroup.position.set(2.35, 0, 0.85);
   menuGroup.rotation.y = -0.35;
-  const easelLeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.35, 0.06), frameWoodMat);
-  easelLeg1.position.set(-0.28, 0.66, 0);
-  easelLeg1.rotation.x = -0.12;
-  menuGroup.add(easelLeg1);
-  const easelLeg2 = easelLeg1.clone();
-  easelLeg2.position.x = 0.28;
-  menuGroup.add(easelLeg2);
-  const menuPanel = new THREE.Mesh(
-    new THREE.BoxGeometry(0.84, 0.92, 0.05),
-    new THREE.MeshStandardMaterial({ map: textures.menuBoard, roughness: 0.6 }),
-  );
-  menuPanel.position.set(0, 1.02, 0.05);
-  menuPanel.castShadow = true;
-  menuGroup.add(menuPanel);
   stallGroup.add(menuGroup);
 
-  // Customer Waiting Bench
-  const bench = new THREE.Group();
+  // Customer Waiting Bench & Roadside Wooden Side Table
+  const bench = await assetManager.loadOrBuild('furn_waiting_bench', () => {
+    const bg = new THREE.Group();
+    const benchPlank = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.06, 0.34), frameWoodMat);
+    benchPlank.position.y = 0.44;
+    benchPlank.castShadow = true;
+    bg.add(benchPlank);
+    for (const lx of [-0.45, 0.45]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.44, 0.28), frameWoodMat);
+      leg.position.set(lx, 0.22, 0);
+      bg.add(leg);
+    }
+    return bg;
+  });
   bench.position.set(-2.15, 0, 1.45);
-  const benchPlank = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.06, 0.34), frameWoodMat);
-  benchPlank.position.y = 0.44;
-  benchPlank.castShadow = true;
-  bench.add(benchPlank);
-  for (const lx of [-0.45, 0.45]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.44, 0.28), frameWoodMat);
-    leg.position.set(lx, 0.22, 0);
-    bench.add(leg);
-  }
   stallGroup.add(bench);
 
-  // --- STATION 1: CHAPATI PREP BOARD (Left: x = -1.25) ---
-  const prepGroup = await assetManager.loadOrBuild('equip_rolling_pin', () => {
-    const g = new THREE.Group();
-    g.position.set(-1.25, 0.96, 0.05);
+  const sideTable = await assetManager.loadOrBuild('furn_wooden_table', () => {
+    const tg = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.05, 0.56), frameWoodMat);
+    top.position.y = 0.72;
+    top.castShadow = true;
+    top.receiveShadow = true;
+    tg.add(top);
+    for (const lx of [-0.31, 0.31]) {
+      for (const lz of [-0.21, 0.21]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.06), frameWoodMat);
+        leg.position.set(lx, 0.35, lz);
+        leg.castShadow = true;
+        tg.add(leg);
+      }
+    }
+    return tg;
+  });
+  sideTable.position.set(-2.45, 0, 0.72);
+  stallGroup.add(sideTable);
 
+  // --- STATION 1: CHAPATI PREP BOARD (Left: x = -1.25) ---
+  // Keep station wrapper + raycast hitbox outside AssetManager so GLB swaps never break clicks
+  const prepGroup = new THREE.Group();
+  prepGroup.position.set(-1.25, 0.96, 0.05);
+
+  const rollingPinBoard = await assetManager.loadOrBuild('equip_rolling_pin', () => {
+    const g = new THREE.Group();
     const board = new THREE.Mesh(
       new THREE.CylinderGeometry(0.28, 0.28, 0.035, 24),
       frameWoodMat,
@@ -354,17 +382,6 @@ export async function buildKampalaRolexStall(
     board.receiveShadow = true;
     g.add(board);
 
-    // Dough balls ready to roll
-    const doughMat = new THREE.MeshStandardMaterial({ color: 0xf3e5ab, roughness: 0.88 });
-    for (let i = 0; i < 3; i++) {
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), doughMat);
-      ball.scale.y = 0.72;
-      ball.position.set(-0.32, 0.04, -0.25 + i * 0.14);
-      ball.castShadow = true;
-      g.add(ball);
-    }
-
-    // Wooden rolling pin
     const pin = new THREE.Mesh(
       new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12),
       new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.7 }),
@@ -374,38 +391,109 @@ export async function buildKampalaRolexStall(
     pin.position.set(0.04, 0.055, 0.14);
     pin.castShadow = true;
     g.add(pin);
+    return g;
+  });
+  prepGroup.add(rollingPinBoard);
 
-    // Stack of cooked golden chapatis on enamel plate
+  // Dough balls ready to roll
+  const doughStack = await assetManager.loadOrBuild('food_chapati_raw', () => {
+    const dg = new THREE.Group();
+    const doughMat = new THREE.MeshStandardMaterial({ color: 0xf3e5ab, roughness: 0.88 });
+    for (let i = 0; i < 3; i++) {
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), doughMat);
+      ball.scale.y = 0.72;
+      ball.position.set(0, 0.04, -0.14 + i * 0.14);
+      ball.castShadow = true;
+      dg.add(ball);
+    }
+    return dg;
+  });
+  doughStack.position.set(-0.32, 0, -0.11);
+  prepGroup.add(doughStack);
+
+  // Stack of cooked golden chapatis on enamel plate
+  const cookedChapatiStack = await assetManager.loadOrBuild('food_chapati_cooked', () => {
+    const cg = new THREE.Group();
     const plate = new THREE.Mesh(
       new THREE.CylinderGeometry(0.21, 0.18, 0.02, 20),
       new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 }),
     );
-    plate.position.set(-0.34, 0.01, 0.24);
-    g.add(plate);
+    plate.position.y = 0.01;
+    cg.add(plate);
 
     for (let c = 0; c < 4; c++) {
       const chap = new THREE.Mesh(
         new THREE.CylinderGeometry(0.16, 0.16, 0.012, 20),
         new THREE.MeshStandardMaterial({ map: textures.chapatiSurface, roughness: 0.78 }),
       );
-      chap.position.set(-0.34, 0.026 + c * 0.013, 0.24);
+      chap.position.y = 0.026 + c * 0.013;
       chap.rotation.y = c * 0.5;
-      g.add(chap);
+      cg.add(chap);
     }
-
-    // Hitbox for prep station
-    const hit = new THREE.Mesh(
-      new THREE.BoxGeometry(0.85, 0.4, 0.8),
-      new THREE.MeshBasicMaterial({ visible: false }),
-    );
-    hit.position.y = 0.15;
-    hit.userData = { interactType: 'station', station: 'prep' };
-    hit.layers.set(1);
-    g.add(hit);
-    interactiveMeshes.push(hit);
-
-    return g;
+    return cg;
   });
+  cookedChapatiStack.position.set(-0.34, 0, 0.24);
+  prepGroup.add(cookedChapatiStack);
+
+  // Chef Knife, Cutting Board & Grater accent beside prep board
+  const knifeSet = await assetManager.loadOrBuild('equip_knife_board', () => {
+    const kg = new THREE.Group();
+    const chopBoard = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.022, 0.2), frameWoodMat);
+    chopBoard.position.y = 0.011;
+    chopBoard.receiveShadow = true;
+    kg.add(chopBoard);
+
+    const blade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.006, 0.036),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.88, roughness: 0.22 }),
+    );
+    blade.position.set(-0.02, 0.026, 0.02);
+    blade.rotation.y = 0.28;
+    kg.add(blade);
+
+    const handle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.085, 0.016, 0.022),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.65 }),
+    );
+    handle.position.set(0.09, 0.028, 0.05);
+    handle.rotation.y = 0.28;
+    kg.add(handle);
+    return kg;
+  });
+  knifeSet.position.set(0.35, 0, 0.22);
+  prepGroup.add(knifeSet);
+
+  // Fresh Produce / Carrot Crate on left edge of counter
+  const produceCrate = await assetManager.loadOrBuild('ing_carrot_crate', () => {
+    const pg = new THREE.Group();
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.22), frameWoodMat);
+    box.position.y = 0.05;
+    box.castShadow = true;
+    pg.add(box);
+    const carrotMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.68 });
+    for (let i = 0; i < 4; i++) {
+      const carrot = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.14, 8), carrotMat);
+      carrot.rotation.z = Math.PI / 2 - 0.15;
+      carrot.rotation.y = i * 0.4;
+      carrot.position.set(-0.04 + (i % 2) * 0.08, 0.11, -0.05 + Math.floor(i / 2) * 0.09);
+      pg.add(carrot);
+    }
+    return pg;
+  });
+  produceCrate.position.set(-0.26, 0, -0.45);
+  prepGroup.add(produceCrate);
+
+  // Hitbox for prep station (always kept directly on prepGroup)
+  const prepHit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.85, 0.4, 0.8),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
+  prepHit.position.y = 0.15;
+  prepHit.userData = { interactType: 'station', station: 'prep' };
+  prepHit.layers.set(1);
+  prepGroup.add(prepHit);
+  interactiveMeshes.push(prepHit);
+
   stallGroup.add(prepGroup);
 
   // --- STATION 2: SIGIRI CHARCOAL STOVE & CAST-IRON TAVA PAN (Center: x = -0.15) ---
@@ -413,13 +501,18 @@ export async function buildKampalaRolexStall(
   const stoveGroup = new THREE.Group();
   stoveGroup.position.copy(stovePos);
 
-  const sigiriBody = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.32, 0.25, 0.19, 20),
-    ironFrameMat,
-  );
-  sigiriBody.position.y = 0.095;
-  sigiriBody.castShadow = true;
-  stoveGroup.add(sigiriBody);
+  const sigiriShell = await assetManager.loadOrBuild('equip_sigiri_stove', () => {
+    const sg = new THREE.Group();
+    const sigiriBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.25, 0.19, 20),
+      ironFrameMat,
+    );
+    sigiriBody.position.y = 0.095;
+    sigiriBody.castShadow = true;
+    sg.add(sigiriBody);
+    return sg;
+  });
+  stoveGroup.add(sigiriShell);
 
   const emberGlow = new THREE.Mesh(
     new THREE.CylinderGeometry(0.24, 0.24, 0.04, 16),
@@ -452,35 +545,60 @@ export async function buildKampalaRolexStall(
   stoveLight.position.set(0, 0.26, 0);
   stoveGroup.add(stoveLight);
 
-  // Heavy Cast-Iron Tava Frying Pan
-  const tavaPan = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.37, 0.34, 0.032, 28),
-    new THREE.MeshStandardMaterial({
-      map: textures.castIronTava,
-      roughness: 0.42,
-      metalness: 0.82,
-    }),
-  );
-  tavaPan.position.y = 0.215;
-  tavaPan.castShadow = true;
-  tavaPan.receiveShadow = true;
-  stoveGroup.add(tavaPan);
+  // Heavy Cast-Iron Tava Frying Pan (swappable via equip_tava_pan)
+  const tavaPanShell = await assetManager.loadOrBuild('equip_tava_pan', () => {
+    const tg = new THREE.Group();
+    const tavaPan = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.37, 0.34, 0.032, 28),
+      new THREE.MeshStandardMaterial({
+        map: textures.castIronTava,
+        roughness: 0.42,
+        metalness: 0.82,
+      }),
+    );
+    tavaPan.position.y = 0.215;
+    tavaPan.castShadow = true;
+    tavaPan.receiveShadow = true;
+    tg.add(tavaPan);
 
-  const panRim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.365, 0.016, 10, 28),
-    ironFrameMat,
-  );
-  panRim.rotation.x = Math.PI / 2;
-  panRim.position.y = 0.23;
-  stoveGroup.add(panRim);
+    const panRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.365, 0.016, 10, 28),
+      ironFrameMat,
+    );
+    panRim.rotation.x = Math.PI / 2;
+    panRim.position.y = 0.23;
+    tg.add(panRim);
 
-  // Pan Handle
-  const panHandle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.024, 0.045), ironFrameMat);
-  panHandle.position.set(-0.46, 0.24, 0);
-  panHandle.rotation.z = -0.1;
-  stoveGroup.add(panHandle);
+    const panHandle = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.024, 0.045), ironFrameMat);
+    panHandle.position.set(-0.46, 0.24, 0);
+    panHandle.rotation.z = -0.1;
+    tg.add(panHandle);
+    return tg;
+  });
+  stoveGroup.add(tavaPanShell);
 
-  // Live Cooking Meshes on Pan
+  // Background Saucepan / Tea Pot on rear counter beside stove
+  const rearPot = await assetManager.loadOrBuild('equip_cooking_pot', () => {
+    const pg = new THREE.Group();
+    const potBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.13, 0.16, 16),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.28 }),
+    );
+    potBody.position.y = 0.08;
+    potBody.castShadow = true;
+    pg.add(potBody);
+    const lid = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.145, 0.145, 0.018, 16),
+      new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.88, roughness: 0.24 }),
+    );
+    lid.position.y = 0.165;
+    pg.add(lid);
+    return pg;
+  });
+  rearPot.position.set(-0.52, 0, -0.45);
+  stoveGroup.add(rearPot);
+
+  // Live Cooking Meshes on Pan (kept procedural for dynamic heat/cook color transitions)
   const panSurfaceY = 0.236;
   const panChapati = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.22, 0.014, 24),
@@ -506,7 +624,9 @@ export async function buildKampalaRolexStall(
   panOmelette.visible = false;
   stoveGroup.add(panOmelette);
 
-  const panRolled = createRolledRolexMesh(textures.chapatiSurface);
+  const panRolled = await assetManager.loadOrBuild('food_rolex_rolled', () =>
+    createRolledRolexMesh(textures.chapatiSurface),
+  );
   panRolled.position.set(0, panSurfaceY + 0.045, 0);
   panRolled.visible = false;
   stoveGroup.add(panRolled);
@@ -552,39 +672,44 @@ export async function buildKampalaRolexStall(
   const ingGroup = new THREE.Group();
   ingGroup.position.set(0.68, 0.96, -0.02);
 
-  const bowlConfigs: Array<[number, number, number, number]> = [
-    [-0.18, -0.22, 0x9d174d, 0xf472b6], // Red Onion
-    [0.08, -0.22, 0xb91c1c, 0xef4444],  // Tomato
-    [0.34, -0.22, 0x65a30d, 0xa3e635],  // Cabbage
-    [-0.18, 0.06, 0x15803d, 0x22c55e],  // Green Pepper
-    [0.08, 0.06, 0x78350f, 0x92400e],   // Spiced Beef
-    [0.34, 0.06, 0x84cc16, 0xd9f99d],   // Avocado
+  const bowlConfigs: Array<[string, number, number, number, number]> = [
+    ['ing_onion_bowl', -0.18, -0.22, 0x9d174d, 0xf472b6],   // Red Onion
+    ['ing_tomato_bowl', 0.08, -0.22, 0xb91c1c, 0xef4444],   // Tomato
+    ['ing_cabbage_bowl', 0.34, -0.22, 0x65a30d, 0xa3e635],  // Cabbage
+    ['ing_pepper_bowl', -0.18, 0.06, 0x15803d, 0x22c55e],   // Green Pepper
+    ['ing_beef_bowl', 0.08, 0.06, 0x78350f, 0x92400e],      // Spiced Beef
+    ['ing_avocado_bowl', 0.34, 0.06, 0x84cc16, 0xd9f99d],   // Avocado
   ];
-  for (const [bx, bz, c1, c2] of bowlConfigs) {
-    const bowl = createBowlWithContents(c1, c2, 0.105);
+  for (const [assetId, bx, bz, c1, c2] of bowlConfigs) {
+    const bowl = await assetManager.loadOrBuild(assetId, () =>
+      createBowlWithContents(c1, c2, 0.105),
+    );
     bowl.position.set(bx, 0, bz);
     ingGroup.add(bowl);
   }
 
   // Egg Crate
-  const eggCrate = new THREE.Group();
-  eggCrate.position.set(-0.18, 0, 0.34);
-  const trayBase = new THREE.Mesh(
-    new THREE.BoxGeometry(0.28, 0.035, 0.22),
-    new THREE.MeshStandardMaterial({ color: 0xa8a29e, roughness: 0.92 }),
-  );
-  trayBase.position.y = 0.017;
-  eggCrate.add(trayBase);
-  const eggMat = new THREE.MeshStandardMaterial({ color: 0xe7c697, roughness: 0.45 });
-  for (let ex = -1; ex <= 1; ex++) {
-    for (let ez = -1; ez <= 1; ez++) {
-      const egg = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), eggMat);
-      egg.scale.y = 1.28;
-      egg.position.set(ex * 0.07, 0.045, ez * 0.06);
-      egg.castShadow = true;
-      eggCrate.add(egg);
+  const eggCrate = await assetManager.loadOrBuild('ing_egg_tray', () => {
+    const eg = new THREE.Group();
+    const trayBase = new THREE.Mesh(
+      new THREE.BoxGeometry(0.28, 0.035, 0.22),
+      new THREE.MeshStandardMaterial({ color: 0xa8a29e, roughness: 0.92 }),
+    );
+    trayBase.position.y = 0.017;
+    eg.add(trayBase);
+    const eggMat = new THREE.MeshStandardMaterial({ color: 0xe7c697, roughness: 0.45 });
+    for (let ex = -1; ex <= 1; ex++) {
+      for (let ez = -1; ez <= 1; ez++) {
+        const egg = new THREE.Mesh(new THREE.SphereGeometry(0.028, 10, 8), eggMat);
+        egg.scale.y = 1.28;
+        egg.position.set(ex * 0.07, 0.045, ez * 0.06);
+        egg.castShadow = true;
+        eg.add(egg);
+      }
     }
-  }
+    return eg;
+  });
+  eggCrate.position.set(-0.18, 0, 0.34);
   ingGroup.add(eggCrate);
 
   const ingHit = new THREE.Mesh(
@@ -603,15 +728,22 @@ export async function buildKampalaRolexStall(
   const servingGroup = new THREE.Group();
   servingGroup.position.set(1.45, 0.96, 0.2);
 
-  const tray = new THREE.Mesh(
-    new THREE.BoxGeometry(0.46, 0.025, 0.36),
-    counterTopMat,
-  );
-  tray.position.y = 0.0125;
-  tray.receiveShadow = true;
+  const tray = await assetManager.loadOrBuild('equip_serving_tray', () => {
+    const tg = new THREE.Group();
+    const trayMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.46, 0.025, 0.36),
+      counterTopMat,
+    );
+    trayMesh.position.y = 0.0125;
+    trayMesh.receiveShadow = true;
+    tg.add(trayMesh);
+    return tg;
+  });
   servingGroup.add(tray);
 
-  const trayRolled = createRolledRolexMesh(textures.chapatiSurface);
+  const trayRolled = await assetManager.loadOrBuild('food_rolex_rolled', () =>
+    createRolledRolexMesh(textures.chapatiSurface),
+  );
   trayRolled.position.set(0, 0.072, 0);
   trayRolled.rotation.y = 0.25;
   trayRolled.visible = false;
@@ -650,40 +782,48 @@ export async function buildKampalaRolexStall(
   jumaGroup.position.set(-1.35, 0, -0.82);
   jumaGroup.visible = false;
 
-  const jumaSkin = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.65 });
-  const jumaApron = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.78 });
-  const jumaShirt = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.8 });
+  let jumaRightArm: THREE.Object3D | null = null;
+  const jumaMesh = await assetManager.loadOrBuild('char_assistant_juma', () => {
+    const jg = new THREE.Group();
+    const jumaSkin = new THREE.MeshStandardMaterial({ color: 0x4a2c1d, roughness: 0.65 });
+    const jumaApron = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.78 });
+    const jumaShirt = new THREE.MeshStandardMaterial({ color: 0x1e40af, roughness: 0.8 });
 
-  const jumaTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.18, 0.62, 12), jumaShirt);
-  jumaTorso.position.y = 1.12;
-  jumaTorso.castShadow = true;
-  jumaGroup.add(jumaTorso);
+    const jumaTorso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.18, 0.62, 12), jumaShirt);
+    jumaTorso.position.y = 1.12;
+    jumaTorso.castShadow = true;
+    jg.add(jumaTorso);
 
-  const apronFront = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.56, 0.04), jumaApron);
-  apronFront.position.set(0, 1.05, 0.19);
-  jumaGroup.add(apronFront);
+    const apronFront = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.56, 0.04), jumaApron);
+    apronFront.position.set(0, 1.05, 0.19);
+    jg.add(apronFront);
 
-  const jumaHead = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), jumaSkin);
-  jumaHead.position.y = 1.56;
-  jumaHead.castShadow = true;
-  jumaGroup.add(jumaHead);
+    const jumaHead = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), jumaSkin);
+    jumaHead.position.y = 1.56;
+    jumaHead.castShadow = true;
+    jg.add(jumaHead);
 
-  const chefCap = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.15, 0.15, 0.11, 12),
-    jumaApron,
-  );
-  chefCap.position.y = 1.69;
-  jumaGroup.add(chefCap);
+    const chefCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 0.11, 12),
+      jumaApron,
+    );
+    chefCap.position.y = 1.69;
+    jg.add(chefCap);
 
-  const jumaLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.52, 8), jumaSkin);
-  jumaLeftArm.position.set(-0.26, 1.08, 0.1);
-  jumaLeftArm.rotation.x = -0.6;
-  jumaGroup.add(jumaLeftArm);
+    const jumaLeftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.52, 8), jumaSkin);
+    jumaLeftArm.position.set(-0.26, 1.08, 0.1);
+    jumaLeftArm.rotation.x = -0.6;
+    jg.add(jumaLeftArm);
 
-  const jumaRightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.52, 8), jumaSkin);
-  jumaRightArm.position.set(0.26, 1.08, 0.12);
-  jumaRightArm.rotation.x = -0.8;
-  jumaGroup.add(jumaRightArm);
+    const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.52, 8), jumaSkin);
+    rightArm.name = 'juma_right_arm';
+    rightArm.position.set(0.26, 1.08, 0.12);
+    rightArm.rotation.x = -0.8;
+    jg.add(rightArm);
+    return jg;
+  });
+  jumaRightArm = jumaMesh.getObjectByName('juma_right_arm') || null;
+  jumaGroup.add(jumaMesh);
 
   stallGroup.add(jumaGroup);
 

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { AssetManager } from './AssetManager';
 import { EnvironmentMaterialSet } from './EnvironmentMaterials';
 
 interface VehicleAgent {
-  group: THREE.Group;
+  group: THREE.Object3D;
   wheels: THREE.Object3D[];
   laneZ: number;
   dirX: 1 | -1;
@@ -35,7 +36,10 @@ export class TrafficSystem {
 
   constructor(private readonly mats: EnvironmentMaterialSet) {
     this.root.name = 'kireka_traffic_system';
-    this.spawnVehicles();
+  }
+
+  public async initialize(assetManager?: AssetManager): Promise<void> {
+    await this.spawnVehicles(assetManager);
     this.spawnBackgroundPedestrians();
   }
 
@@ -250,7 +254,7 @@ export class TrafficSystem {
     return { group: g, wheels };
   }
 
-  private spawnVehicles(): void {
+  private async spawnVehicles(assetManager?: AssetManager): Promise<void> {
     // Westbound lane (Z = 4.45, dirX = -1, towards Kampala city)
     const specs: Array<{
       kind: 'boda' | 'matatu' | 'saloon';
@@ -273,20 +277,36 @@ export class TrafficSystem {
     ];
 
     for (const s of specs) {
-      const built =
-        s.kind === 'boda'
-          ? this.buildMovingBoda(s.c1, s.c2)
-          : s.kind === 'matatu'
-            ? this.buildMovingMatatu()
-            : this.buildMovingSaloon(s.c1);
+      let group: THREE.Object3D;
+      let wheels: THREE.Object3D[] = [];
 
-      built.group.position.set(s.x, 0.02, s.z);
-      built.group.rotation.y = s.dirX === 1 ? 0 : Math.PI;
-      this.root.add(built.group);
+      const assetId =
+        s.kind === 'boda'
+          ? 'env_boda_motorbike'
+          : s.kind === 'matatu'
+            ? 'env_matatu_taxi'
+            : 'env_saloon_car';
+
+      if (assetManager?.hasActiveGlb(assetId)) {
+        group = await assetManager.loadOrBuild(assetId, () => new THREE.Group());
+      } else {
+        const built =
+          s.kind === 'boda'
+            ? this.buildMovingBoda(s.c1, s.c2)
+            : s.kind === 'matatu'
+              ? this.buildMovingMatatu()
+              : this.buildMovingSaloon(s.c1);
+        group = built.group;
+        wheels = built.wheels;
+      }
+
+      group.position.set(s.x, 0.02, s.z);
+      group.rotation.y = s.dirX === 1 ? 0 : Math.PI;
+      this.root.add(group);
 
       this.vehicles.push({
-        group: built.group,
-        wheels: built.wheels,
+        group,
+        wheels,
         laneZ: s.z,
         dirX: s.dirX,
         speed: s.speed,

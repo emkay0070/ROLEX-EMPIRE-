@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   BarChart3,
+  Box,
+  Check,
+  Copy,
   Database,
   Download,
   History,
@@ -13,6 +16,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { AppRoute } from '../components/SiteLayout';
+import { AssetDescriptor, fetchModelsManifest } from '../engine/AssetManager';
 import {
   exportCareerArchive,
   getPersistenceSummary,
@@ -38,7 +42,7 @@ interface OwnerDashboardPageProps {
   onNavigate: (route: AppRoute) => void;
 }
 
-type DashboardSection = 'overview' | 'shifts' | 'orders' | 'data';
+type DashboardSection = 'overview' | 'shifts' | 'orders' | 'data' | 'models';
 type OrderQualityFilter = 'all' | 'perfect' | 'good' | 'poor' | 'missed';
 
 const PERSONALITY_LABELS: Record<CustomerPersonality, string> = {
@@ -58,6 +62,7 @@ const SECTION_META: Array<{
   { id: 'overview', label: 'Overview', title: 'Business Overview', icon: BarChart3 },
   { id: 'shifts', label: 'Shifts', title: 'Shift History', icon: History },
   { id: 'orders', label: 'Orders', title: 'Order Ledger', icon: Receipt },
+  { id: 'models', label: '3D Models', title: '3D Models Directory', icon: Box },
   { id: 'data', label: 'Data & Upgrades', title: 'Upgrades & Storage', icon: Database },
 ];
 
@@ -102,10 +107,14 @@ export const OwnerDashboardPage: React.FC<OwnerDashboardPageProps> = ({ onNaviga
   const [orders, setOrders] = useState<OrderLedgerRecord[]>([]);
   const [upgrades, setUpgrades] = useState<UpgradePurchaseRecord[]>([]);
   const [summary, setSummary] = useState<PersistenceSummary | null>(null);
+  const [manifestModels, setManifestModels] = useState<AssetDescriptor[]>([]);
 
   const [orderSearch, setOrderSearch] = useState('');
   const [qualityFilter, setQualityFilter] = useState<OrderQualityFilter>('all');
   const [shiftSearch, setShiftSearch] = useState('');
+  const [modelFolderFilter, setModelFolderFilter] = useState<string>('all');
+  const [modelSearch, setModelSearch] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -114,18 +123,21 @@ export const OwnerDashboardPage: React.FC<OwnerDashboardPageProps> = ({ onNaviga
   const loadAllFromStorage = useCallback(async () => {
     setLoading(true);
     try {
-      const [profile, shiftRows, orderRows, upgradeRows, persistMeta] = await Promise.all([
-        hydrateSaveDataAsync(),
-        loadShiftHistory(),
-        loadOrderLedger(500),
-        loadUpgradeLog(),
-        getPersistenceSummary(),
-      ]);
+      const [profile, shiftRows, orderRows, upgradeRows, persistMeta, modelsManifest] =
+        await Promise.all([
+          hydrateSaveDataAsync(),
+          loadShiftHistory(),
+          loadOrderLedger(500),
+          loadUpgradeLog(),
+          getPersistenceSummary(),
+          fetchModelsManifest(),
+        ]);
       setSaveData(profile);
       setShifts(shiftRows);
       setOrders(orderRows);
       setUpgrades(upgradeRows);
       setSummary(persistMeta);
+      setManifestModels(modelsManifest?.models || []);
     } finally {
       setLoading(false);
     }
@@ -222,6 +234,43 @@ export const OwnerDashboardPage: React.FC<OwnerDashboardPageProps> = ({ onNaviga
       );
     });
   }, [orders, qualityFilter, orderSearch]);
+
+  const modelFolders = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of manifestModels) {
+      if (m.folder) set.add(m.folder);
+    }
+    return ['all', ...Array.from(set)];
+  }, [manifestModels]);
+
+  const filteredModels = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase();
+    return manifestModels.filter((m) => {
+      if (modelFolderFilter !== 'all' && m.folder !== modelFolderFilter) return false;
+      if (!q) return true;
+      return (
+        m.id.toLowerCase().includes(q) ||
+        (m.slotLabel || '').toLowerCase().includes(q) ||
+        (m.glbUrl || '').toLowerCase().includes(q) ||
+        (m.notes || '').toLowerCase().includes(q)
+      );
+    });
+  }, [manifestModels, modelFolderFilter, modelSearch]);
+
+  const activeGlbCount = useMemo(
+    () => manifestModels.filter((m) => m.enabled && Boolean(m.glbUrl)).length,
+    [manifestModels],
+  );
+
+  const handleCopyModelPath = async (id: string, path: string) => {
+    try {
+      await navigator.clipboard.writeText(`public${path}`);
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 1500);
+    } catch {
+      setNotice({ kind: 'ok', text: `Target path: public${path}` });
+    }
+  };
 
   const handleExportCsv = () => {
     const headers = [
@@ -889,6 +938,140 @@ export const OwnerDashboardPage: React.FC<OwnerDashboardPageProps> = ({ onNaviga
                       </table>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* SECTION 3.5: 3D MODELS DIRECTORY */}
+              {section === 'models' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+                    <div>
+                      <h1 className="font-display text-2xl font-bold text-[#f7f3eb]">
+                        3D Models Directory &amp; Manifest
+                      </h1>
+                      <p className="text-xs text-[#9c9286] mt-1">
+                        Drop <code className="text-[#f7f3eb]">.glb</code> files into{' '}
+                        <code className="text-[#f7f3eb]">public/assets/models/&lt;folder&gt;/</code>{' '}
+                        and set <code className="text-[#fcdc04]">enabled: true</code> in{' '}
+                        <code className="text-[#f7f3eb]">public/assets/models/manifest.json</code>.
+                      </p>
+                    </div>
+                    <p className="text-xs font-mono-tabular text-[#bfb5a8]">
+                      Active GLBs:{' '}
+                      <span className="text-[#fcdc04] font-semibold">
+                        {activeGlbCount} / {manifestModels.length}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-[#1b1714] border border-white/10">
+                      {modelFolders.map((folder) => (
+                        <button
+                          key={folder}
+                          type="button"
+                          onClick={() => setModelFolderFilter(folder)}
+                          className={`px-2.5 py-1.5 rounded-md text-xs font-medium capitalize whitespace-nowrap cursor-pointer ${
+                            modelFolderFilter === folder
+                              ? 'bg-[#f59e0b] text-[#14110f] font-semibold'
+                              : 'text-[#bfb5a8] hover:text-white'
+                          }`}
+                        >
+                          {folder}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative w-full lg:w-64">
+                      <Search className="w-4 h-4 text-[#9c9286] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="search"
+                        value={modelSearch}
+                        onChange={(e) => setModelSearch(e.target.value)}
+                        placeholder="Search asset ID or file..."
+                        aria-label="Search 3D model slots"
+                        className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-lg bg-[#1b1714] border border-white/12 text-xs text-[#f7f3eb] placeholder:text-[#8c8378] focus:outline-none focus:border-[#f59e0b]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-[#1b1714] border border-white/10 overflow-x-auto">
+                    <table className="w-full text-xs min-w-[780px]">
+                      <thead className="border-b border-white/10 text-[#9c9286]">
+                        <tr>
+                          <th className="text-left font-medium px-4 py-3">Slot &amp; Asset ID</th>
+                          <th className="text-left font-medium px-4 py-3">Target Drop-In Path</th>
+                          <th className="text-right font-medium px-3 py-3">Target Size</th>
+                          <th className="text-left font-medium px-4 py-3">Active Mode</th>
+                          <th className="text-right font-medium px-4 py-3">Copy</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {filteredModels.map((m) => {
+                          const isGlb = Boolean(m.enabled && m.glbUrl);
+                          const scaleLabel = m.targetHeight
+                            ? `${m.targetHeight}m height`
+                            : m.targetMaxDim
+                              ? `${m.targetMaxDim}m max`
+                              : 'auto';
+                          const targetFile = m.glbUrl || `/assets/models/${m.folder || 'misc'}/${m.id}.glb`;
+
+                          return (
+                            <tr key={m.id} className="hover:bg-white/[0.03]">
+                              <td className="px-4 py-3">
+                                <p className="font-semibold text-[#f7f3eb]">
+                                  {m.slotLabel || m.id}
+                                </p>
+                                <p className="font-mono-tabular text-[11px] text-[#9c9286] mt-0.5">
+                                  {m.id}
+                                </p>
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-mono-tabular text-[#d6cec3]">
+                                  public{targetFile}
+                                </p>
+                                {m.notes && (
+                                  <p className="text-[11px] text-[#9c9286] mt-0.5">{m.notes}</p>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 text-right font-mono-tabular text-[#d6cec3] whitespace-nowrap">
+                                {scaleLabel}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span
+                                  className={`font-semibold ${
+                                    isGlb ? 'text-emerald-400' : 'text-[#9c9286]'
+                                  }`}
+                                >
+                                  {isGlb ? 'GLB Active' : 'Procedural'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleCopyModelPath(m.id, targetFile)}
+                                  className="min-h-[32px] px-2.5 py-1 rounded-md bg-white/8 hover:bg-white/15 text-[#f7f3eb] inline-flex items-center gap-1 cursor-pointer"
+                                  title={`Copy public${targetFile}`}
+                                >
+                                  {copiedId === m.id ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span>Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>Path</span>
+                                    </>
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 

@@ -82,7 +82,7 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 | **Shared PBR Mats** | `src/engine/EnvironmentMaterials.ts` | Implemented & Compiled | Central reusable PBR material library (`lateriteSoil`, `jinjaHighway`, `paverWalkway`, `mabati` variants, painted plasters, steel, glass, warm shop interior emissives, vehicle trims) minimizing shader duplication. |
 | **Procedural Textures** | `src/engine/ProceduralTextures.ts` | Implemented & Compiled | Generates 19 `CanvasTexture`s including Kampala–Jinja Highway worn asphalt, interlocking pavers, Kireka commercial shopfront signs (`Hardware`, `Wholesale Duka`, `Tech & Salon`, `Mobile Money`, `Kireka Main Market`), soft smoke sprite, and stall textures. |
 | **Hero Rolex Stall** | `src/engine/StallBuilder.ts` | Implemented & Compiled | Focused strictly on the playable hero stall at `(0,0,0)`: concrete pad, timber posts, *mabati* roof, signboard, tungsten bulb, 4 exact raycast stations (`prep`, `tava`, `ingredients`, `serve`), Chef Juma, canopy + stools upgrade, 20L yellow oil jerrycan, soda crates, charcoal sack, and soft steam particles. |
-| **Asset Loader** | `src/engine/AssetManager.ts` | Implemented & Compiled | Supports `GLTFLoader` + `DRACOLoader` + `Box3` `normalizeAndGround()`, tracks/disposes cached meshes and textures, and registers 39 modular asset IDs across all 7 `AssetCategory` groups defaulting cleanly to procedural builders with zero 404s. |
+| **Asset Loader** | `src/engine/AssetManager.ts`, `public/assets/models/manifest.json` | Implemented & Compiled | Fetches `public/assets/models/manifest.json` at init, supports `GLTFLoader` + `DRACOLoader` + `Box3` `normalizeAndGround()` (`targetHeight`, `targetMaxDim`, `rotationDeg`, `offset`), tracks/disposes cached meshes and textures, and wires 44 modular asset slots across 10 subfolders (`food/`, `ingredients/`, `kitchen/`, `furniture/`, `props/`, `roads/`, `vegetation/`, `buildings/`, `vehicles/`, `characters/`) with zero-404 procedural fallbacks. |
 | **Customer System** | `src/engine/CustomerSystem.ts` | Implemented & Compiled | 5 personalities, shared geometries/materials, zero-allocation per-frame `updateCustomerVisuals()`, raycast hitbox on layer `1`. |
 | **Audio Engine** | `src/engine/AudioSystem.ts` | Implemented & Verified | Procedural sizzle, egg crack, chop, roll, cash chime, customer arrive, angry leave. |
 | **Simulation & HUD** | `src/components/GameView.tsx`, `GameHUD.tsx`, `ShopModal.tsx`, `ShiftSummaryModal.tsx` | Implemented & Verified | 50ms deterministic interval loop decoupled from React state updaters via refs; keyboard shortcuts (`Space`, `H`, `Esc`); collapsible bottom dock; shop & shift summary modals. |
@@ -135,8 +135,8 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 
 *Detailed audit in `docs/research/2026-11-24-asset-inventory-and-integration-plan.md` & `docs/research/2026-11-24-kireka-revised-environment-blueprint.md`.*
 
-- **Verified Repository State (2026-11-24):** **0 external `.glb`, `.gltf`, `.png`, `.jpg`, or audio files exist** in `/public` or `/src`. All 39 `AssetManager` IDs use lightweight modular procedural `THREE.Group` + `InstancedMesh` placeholders + 19 procedural `CanvasTexture`s, ready for zero-refactor GLB swaps via `registerGlbAsset()` + `DRACOLoader` + `normalizeAndGround()`.
-- **External Assets Collected by Owner (Awaiting Delivery / Future Drop-In):** Produce, egg cartons, knives, graters, pans, pots, stoves, dishwashers (deferred to Level 9–10 Bistro), wooden tables/furniture, rocks, vegetation, and road/tarmac GLBs can be dropped into `public/assets/models/` and bound by ID in `AssetManager.ts`.
+- **Verified Repository State (2026-11-24):** `public/assets/models/` directory is now initialized with 10 category subfolders, `public/assets/models/README.md`, and `public/assets/models/manifest.json` registering 44 drop-in `.glb` slots (currently `enabled: false` with procedural fallbacks until `.glb` files are dropped in).
+- **External Assets Collected by Owner (Ready for Drop-In):** Produce, egg cartons, knives, graters, pans, pots, stoves, dishwashers (deferred to Level 9–10 Bistro), wooden tables/furniture, rocks, vegetation, and road/tarmac GLBs can now be dropped directly into `public/assets/models/<folder>/`, activated with `"enabled": true` in `public/assets/models/manifest.json`, and inspected in `/owner` -> **3D Models**.
 
 ---
 
@@ -181,15 +181,16 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 
 - **Implemented & Pushed (`d767b3e`):** Milestone 1 Kireka 3D environment (`DistrictManager`, `TrafficSystem`, `EnvironmentMaterials`, `AssetManager`, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts`).
 - **Implemented & Pushed (`1c5e96a`):** Milestone 2 structured IndexedDB persistence (`IndexedDbStore.ts`, `SaveSystem.ts`, `GameView.tsx`, `HomePage.tsx`, `types/game.ts`).
-- **Implemented & Compiled (Milestone 3):** Private Owner's Dashboard at `/owner` (`OwnerDashboardPage.tsx`, `SaveSystem.ts`, `App.tsx`, `HomePage.tsx`, `SiteLayout.tsx`).
+- **Implemented & Pushed (`06148ca`):** Milestone 3 Private Owner's Dashboard at `/owner` (`OwnerDashboardPage.tsx`, `SaveSystem.ts`, `App.tsx`, `HomePage.tsx`, `SiteLayout.tsx`).
+- **Implemented & Compiled (Models Directory & GLB Pipeline):** Initialized `public/assets/models/` (10 subfolders, `manifest.json`, `README.md`), upgraded `AssetManager.ts` with `manifest.json` + `rotationDeg`/`offset`/`targetMaxDim`, fixed `StallBuilder.ts` prep-station hitbox isolation & wired all kitchen/ingredient/furniture/prop slots, added GLB overrides in `DistrictManager.ts` + `TrafficSystem.ts`, and added the live **3D Models** directory view in `OwnerDashboardPage.tsx`.
 - **Deferred:** Supabase, authentication, RLS, cloud sync (explicitly out of scope unless requested later).
 
 ---
 
 ## 14. Current Priority & Immediate Next Tasks
 
-1. Visually test the Kireka 3D viewport (`/play`), IndexedDB persistence (`rolex_empire_db`), and Private Owner's Dashboard (`/owner`) on live desktop and mobile browsers (including CSV export and JSON backup/restore).
-2. Drop any owner-supplied `.glb` models into `/public/assets/models/` and bind `glbUrl` entries in `AssetManager.ts` when ready.
+1. Drop collected `.glb` files into `public/assets/models/<folder>/`, set `"enabled": true` in `public/assets/models/manifest.json`, and inspect them on `/play` and `/owner` -> **3D Models**.
+2. Fine-tune `targetHeight` / `targetMaxDim`, `rotationDeg`, or `offset` in `public/assets/models/manifest.json` per imported model if any asset needs orientation or scale adjustment.
 3. Keep Supabase / cloud synchronization deferred until explicitly authorized by the project owner.
 
 ---

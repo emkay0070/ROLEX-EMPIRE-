@@ -174,6 +174,9 @@ export class RolexGameEngine {
 
   public async initialize(): Promise<void> {
     const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
+    this.assetManager.setMaxAnisotropy(maxAniso);
+    await this.assetManager.loadManifest();
+
     this.textures = createProceduralTextures(maxAniso);
     Object.values(this.textures).forEach((t) => this.assetManager.trackTexture(t));
 
@@ -181,6 +184,7 @@ export class RolexGameEngine {
     this.scene.add(this.district.root);
 
     this.trafficSystem = new TrafficSystem(this.district.materials);
+    await this.trafficSystem.initialize(this.assetManager);
     this.scene.add(this.trafficSystem.root);
 
     this.stallRig = await buildKampalaRolexStall(this.assetManager, this.textures);
@@ -471,7 +475,7 @@ export class RolexGameEngine {
         }
 
         // Juma chopping motion when hired
-        if (this.stallRig.jumaGroup.visible) {
+        if (this.stallRig.jumaGroup.visible && this.stallRig.jumaRightArm) {
           this.stallRig.jumaRightArm.rotation.x = -0.85 + Math.sin(elapsed * 8) * 0.22;
         }
       }

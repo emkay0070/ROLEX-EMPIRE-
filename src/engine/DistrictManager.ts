@@ -465,6 +465,45 @@ function buildKirekaMarketShed(
   return g;
 }
 
+function createRockClusterMesh(mats: EnvironmentMaterialSet): THREE.Group {
+  const g = new THREE.Group();
+  const specs: Array<[number, number, number, number, number]> = [
+    [0, 0, 0, 0.24, 0.3],
+    [0.24, 0, 0.14, 0.16, 1.1],
+    [-0.19, 0, 0.16, 0.14, 2.2],
+  ];
+  for (const [rx, _ry, rz, rad, rot] of specs) {
+    const rock = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(rad, 0),
+      mats.lateriteSoil,
+    );
+    rock.scale.set(1.25, 0.68, 0.95);
+    rock.position.set(rx, rad * 0.42, rz);
+    rock.rotation.set(rot * 0.2, rot, 0);
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    g.add(rock);
+  }
+  return g;
+}
+
+function createVerandaTableMesh(mats: EnvironmentMaterialSet): THREE.Group {
+  const g = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.6), mats.timberMarket);
+  top.position.y = 0.74;
+  top.castShadow = true;
+  top.receiveShadow = true;
+  g.add(top);
+  for (const lx of [-0.36, 0.36]) {
+    for (const lz of [-0.22, 0.22]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.72, 0.06), mats.timberMarket);
+      leg.position.set(lx, 0.36, lz);
+      g.add(leg);
+    }
+  }
+  return g;
+}
+
 function createUmemePole(mats: EnvironmentMaterialSet): THREE.Group {
   const g = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 6.2, 8), mats.timberPole);
@@ -809,15 +848,53 @@ export async function buildKirekaDistrict(
   }
 
   // East-Side Kireka Boda-Boda & Matatu Stage (X = +4.8..+11.5)
-  const parkedBoda1 = createParkedBodaMesh(mats, 0xdc2626);
+  const parkedBoda1 = await assetManager.loadOrBuild('env_boda_motorbike', () =>
+    createParkedBodaMesh(mats, 0xdc2626),
+  );
   parkedBoda1.position.set(4.55, 0, 2.05);
   parkedBoda1.rotation.y = -0.52;
   root.add(parkedBoda1);
 
-  const parkedBoda2 = createParkedBodaMesh(mats, 0x1d4ed8);
+  const parkedBoda2 = assetManager.hasActiveGlb('env_boda_motorbike')
+    ? await assetManager.loadOrBuild('env_boda_motorbike', () =>
+        createParkedBodaMesh(mats, 0x1d4ed8),
+      )
+    : createParkedBodaMesh(mats, 0x1d4ed8);
   parkedBoda2.position.set(6.15, 0, 2.08);
   parkedBoda2.rotation.y = -0.78;
   root.add(parkedBoda2);
+
+  // Kireka Shopfront Veranda Wooden Tables (swappable via furn_wooden_table)
+  const verandaTableCoords: Array<[number, number, number]> = [
+    [1.6, -4.45, 0.05],
+    [9.8, -4.45, -0.08],
+  ];
+  for (const [vx, vz, vrot] of verandaTableCoords) {
+    const vTable = await assetManager.loadOrBuild('furn_wooden_table', () =>
+      createVerandaTableMesh(mats),
+    );
+    vTable.position.set(vx, 0.18, vz);
+    vTable.rotation.y = vrot;
+    root.add(vTable);
+  }
+
+  // Roadside Laterite & Granite Rock Clusters along Drain Shoulder & Market Lane
+  const rockCoords: Array<[number, number, number, number]> = [
+    [-9.2, 2.38, 0.4, 0.9],
+    [-4.1, 2.38, 1.8, 0.85],
+    [3.8, 2.38, 2.6, 0.95],
+    [-7.4, -10.8, 1.1, 1.05],
+    [-4.2, -11.4, 0.2, 0.9],
+  ];
+  for (const [rx, rz, rrot, rsc] of rockCoords) {
+    const rockCluster = await assetManager.loadOrBuild('env_rock_cluster', () =>
+      createRockClusterMesh(mats),
+    );
+    rockCluster.position.set(rx, 0, rz);
+    rockCluster.rotation.y = rrot;
+    rockCluster.scale.setScalar(rsc);
+    root.add(rockCluster);
+  }
 
   // Stage signpost
   const stagePole = new THREE.Mesh(
@@ -892,7 +969,7 @@ export async function buildKirekaDistrict(
   addCableSpan([0, 1, 2, 3, 4, 5], 0.25);
   addCableSpan([6, 7, 8, 9, 10], 0.25);
 
-  // Instanced Ugandan Acacia / Mango Shade Trees (2 draw calls total!)
+  // Ugandan Acacia / Mango Shade Trees (use GLB override when enabled, else 2-draw-call InstancedMesh)
   const treeCoords: Array<[number, number, number]> = [
     [-8.6, -2.1, 1.05],
     [7.8, -2.3, 1.0],
@@ -911,61 +988,87 @@ export async function buildKirekaDistrict(
     [14.5, 11.6, 1.1],
   ];
 
-  const trunkGeo = trackGeo(new THREE.CylinderGeometry(0.15, 0.24, 2.5, 8));
-  const canopyGeo = trackGeo(new THREE.SphereGeometry(1.42, 10, 8));
-  const trunkInst = new THREE.InstancedMesh(trunkGeo, mats.treeBark, treeCoords.length);
-  const canopyInst = new THREE.InstancedMesh(
-    canopyGeo,
-    mats.foliageGreen,
-    treeCoords.length * 2,
-  );
-  trunkInst.castShadow = true;
-  canopyInst.castShadow = true;
-
   const dummy = new THREE.Object3D();
-  treeCoords.forEach(([tx, tz, sc], idx) => {
-    const hillLift = tz < -26 ? ((-tz - 26) / 56) * 2.2 : 0;
-    dummy.position.set(tx, hillLift + 1.25 * sc, tz);
-    dummy.rotation.set(0, idx * 0.7, 0);
-    dummy.scale.set(sc, sc, sc);
-    dummy.updateMatrix();
-    trunkInst.setMatrixAt(idx, dummy.matrix);
 
-    // Lower wide umbrella puff
-    dummy.position.set(tx, hillLift + 2.75 * sc, tz);
-    dummy.scale.set(sc * 1.15, sc * 0.52, sc * 1.15);
-    dummy.updateMatrix();
-    canopyInst.setMatrixAt(idx * 2, dummy.matrix);
+  if (assetManager.hasActiveGlb('env_acacia_tree')) {
+    for (let idx = 0; idx < treeCoords.length; idx++) {
+      const [tx, tz, sc] = treeCoords[idx];
+      const hillLift = tz < -26 ? ((-tz - 26) / 56) * 2.2 : 0;
+      const tree = await assetManager.loadOrBuild('env_acacia_tree', () => new THREE.Group());
+      tree.position.set(tx, hillLift, tz);
+      tree.rotation.y = idx * 0.7;
+      tree.scale.setScalar(sc);
+      root.add(tree);
+    }
+  } else {
+    const trunkGeo = trackGeo(new THREE.CylinderGeometry(0.15, 0.24, 2.5, 8));
+    const canopyGeo = trackGeo(new THREE.SphereGeometry(1.42, 10, 8));
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, mats.treeBark, treeCoords.length);
+    const canopyInst = new THREE.InstancedMesh(
+      canopyGeo,
+      mats.foliageGreen,
+      treeCoords.length * 2,
+    );
+    trunkInst.castShadow = true;
+    canopyInst.castShadow = true;
 
-    // Upper offset puff
-    dummy.position.set(tx + 0.45 * sc, hillLift + 3.05 * sc, tz - 0.25 * sc);
-    dummy.scale.set(sc * 0.82, sc * 0.44, sc * 0.82);
-    dummy.updateMatrix();
-    canopyInst.setMatrixAt(idx * 2 + 1, dummy.matrix);
-  });
-  trunkInst.instanceMatrix.needsUpdate = true;
-  canopyInst.instanceMatrix.needsUpdate = true;
-  trunkInst.computeBoundingSphere();
-  canopyInst.computeBoundingSphere();
-  root.add(trunkInst, canopyInst);
+    treeCoords.forEach(([tx, tz, sc], idx) => {
+      const hillLift = tz < -26 ? ((-tz - 26) / 56) * 2.2 : 0;
+      dummy.position.set(tx, hillLift + 1.25 * sc, tz);
+      dummy.rotation.set(0, idx * 0.7, 0);
+      dummy.scale.set(sc, sc, sc);
+      dummy.updateMatrix();
+      trunkInst.setMatrixAt(idx, dummy.matrix);
 
-  // Instanced roadside shrubs & grass tufts along railway reserve & murram verges
-  const shrubGeo = trackGeo(new THREE.DodecahedronGeometry(0.32, 0));
-  const shrubCount = 44;
-  const shrubs = new THREE.InstancedMesh(shrubGeo, mats.foliageDark, shrubCount);
-  for (let i = 0; i < shrubCount; i++) {
-    const sx = -28 + (i / shrubCount) * 56 + Math.sin(i * 3.1) * 0.6;
-    const sz = i % 2 === 0 ? -11.9 + Math.cos(i) * 0.35 : 9.8 + Math.sin(i) * 0.4;
-    const s = 0.7 + (i % 4) * 0.25;
-    dummy.position.set(sx, 0.16 * s, sz);
-    dummy.rotation.set(0, i * 0.9, 0);
-    dummy.scale.set(s * 1.3, s * 0.75, s);
-    dummy.updateMatrix();
-    shrubs.setMatrixAt(i, dummy.matrix);
+      // Lower wide umbrella puff
+      dummy.position.set(tx, hillLift + 2.75 * sc, tz);
+      dummy.scale.set(sc * 1.15, sc * 0.52, sc * 1.15);
+      dummy.updateMatrix();
+      canopyInst.setMatrixAt(idx * 2, dummy.matrix);
+
+      // Upper offset puff
+      dummy.position.set(tx + 0.45 * sc, hillLift + 3.05 * sc, tz - 0.25 * sc);
+      dummy.scale.set(sc * 0.82, sc * 0.44, sc * 0.82);
+      dummy.updateMatrix();
+      canopyInst.setMatrixAt(idx * 2 + 1, dummy.matrix);
+    });
+    trunkInst.instanceMatrix.needsUpdate = true;
+    canopyInst.instanceMatrix.needsUpdate = true;
+    trunkInst.computeBoundingSphere();
+    canopyInst.computeBoundingSphere();
+    root.add(trunkInst, canopyInst);
   }
-  shrubs.instanceMatrix.needsUpdate = true;
-  shrubs.computeBoundingSphere();
-  root.add(shrubs);
+
+  // Roadside shrubs & grass tufts along railway reserve & murram verges
+  const shrubCount = 44;
+  if (assetManager.hasActiveGlb('env_roadside_shrub')) {
+    for (let i = 0; i < shrubCount; i += 2) {
+      const sx = -28 + (i / shrubCount) * 56 + Math.sin(i * 3.1) * 0.6;
+      const sz = i % 2 === 0 ? -11.9 + Math.cos(i) * 0.35 : 9.8 + Math.sin(i) * 0.4;
+      const s = 0.7 + (i % 4) * 0.25;
+      const shrub = await assetManager.loadOrBuild('env_roadside_shrub', () => new THREE.Group());
+      shrub.position.set(sx, 0, sz);
+      shrub.rotation.y = i * 0.9;
+      shrub.scale.setScalar(s);
+      root.add(shrub);
+    }
+  } else {
+    const shrubGeo = trackGeo(new THREE.DodecahedronGeometry(0.32, 0));
+    const shrubs = new THREE.InstancedMesh(shrubGeo, mats.foliageDark, shrubCount);
+    for (let i = 0; i < shrubCount; i++) {
+      const sx = -28 + (i / shrubCount) * 56 + Math.sin(i * 3.1) * 0.6;
+      const sz = i % 2 === 0 ? -11.9 + Math.cos(i) * 0.35 : 9.8 + Math.sin(i) * 0.4;
+      const s = 0.7 + (i % 4) * 0.25;
+      dummy.position.set(sx, 0.16 * s, sz);
+      dummy.rotation.set(0, i * 0.9, 0);
+      dummy.scale.set(s * 1.3, s * 0.75, s);
+      dummy.updateMatrix();
+      shrubs.setMatrixAt(i, dummy.matrix);
+    }
+    shrubs.instanceMatrix.needsUpdate = true;
+    shrubs.computeBoundingSphere();
+    root.add(shrubs);
+  }
 
   return {
     root,

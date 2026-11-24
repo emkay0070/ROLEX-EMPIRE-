@@ -6,6 +6,22 @@ All notable planning, research, architecture, asset, and code changes for **ROLE
 
 ---
 
+## [2026-11-24 (Update 6)] — `public/assets/models/` Directory & Declarative `.glb` Integration Pipeline
+
+- **Milestone / Task:** Initialize `public/assets/models/` drop-in folder hierarchy + `manifest.json` + scene/dashboard integration
+- **What Changed:**
+  - Created `public/assets/models/` with 10 category subfolders (`food/`, `ingredients/`, `kitchen/`, `furniture/`, `props/`, `roads/`, `vegetation/`, `buildings/`, `vehicles/`, `characters/`), `public/assets/models/README.md`, and `public/assets/models/manifest.json` defining 44 drop-in asset slots (`enabled: false` by default for zero-404 procedural fallback).
+  - Upgraded `src/engine/AssetManager.ts`: added `fetchModelsManifest()` + `loadManifest()`, `hasActiveGlb()`, `targetMaxDim`, `rotationDeg`, and `offset` support in `normalizeAndGround()`, and GLB texture anisotropy/disposal tracking.
+  - Upgraded `src/engine/StallBuilder.ts`: separated clickable station wrappers & raycast hitboxes (`prepHit`, `panHit`, `ingHit`, `serveHit`) from `assetManager.loadOrBuild()` so GLB swaps never break clicks or pan cooking visuals; wired `equip_knife_board`, `equip_cooking_pot`, `equip_sigiri_stove`, `equip_tava_pan`, `equip_serving_tray`, `ing_*_bowl` (6 bowls), `ing_egg_tray`, `ing_carrot_crate`, `food_chapati_raw`, `food_chapati_cooked`, `food_rolex_rolled`, `furn_waiting_bench`, `furn_wooden_table`, `furn_menu_board`, and `char_assistant_juma`.
+  - Upgraded `src/engine/DistrictManager.ts` and `src/engine/TrafficSystem.ts`: wired `env_boda_motorbike`, `furn_wooden_table`, `env_rock_cluster`, `env_matatu_taxi`, `env_saloon_car`, and optional GLB overrides for `env_acacia_tree` / `env_roadside_shrub`.
+  - Updated `src/engine/RolexGameEngine.ts`: calls `assetManager.loadManifest()` and `trafficSystem.initialize(assetManager)` before building the scene.
+  - Added **3D Models** directory & manifest inspector tab in `src/pages/OwnerDashboardPage.tsx` (`/owner`) with folder filters, search, target dimensions, active mode (`GLB Active` vs `Procedural`), and one-click target path copying.
+- **Files / Systems Affected:** `public/assets/models/*`, `src/engine/{AssetManager.ts,StallBuilder.ts,DistrictManager.ts,TrafficSystem.ts,RolexGameEngine.ts}`, `src/pages/OwnerDashboardPage.tsx`, `docs/`.
+- **What Was Tested:** `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`), and `git diff` protected file verification.
+- **Next Recommended Action:** Drop `.glb` models into `public/assets/models/<folder>/` and toggle `"enabled": true` in `public/assets/models/manifest.json` to inspect them live in `/play` and `/owner`.
+
+---
+
 ## [2026-11-24 (Update 5)] — Milestone 2 Push (`1c5e96a`) & Milestone 3: Private Owner's Dashboard (`/owner`)
 
 - **Milestone / Task:** Push Milestone 2 (`1c5e96a`) to GitHub + Implement & Push Milestone 3 (Private Owner's Dashboard)
