@@ -1,0 +1,6 @@
+{
+  "name": "Rolex Empire",
+  "description": "A realistic 3D Ugandan street-food business simulation game set in the streets of Kampala. Cook chapati and eggs, roll authentic Rolex, serve customers, earn UGX, and build a culinary empire.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
