@@ -13,7 +13,15 @@ import { computeLevelFromXp, getTierForLevel } from '../data/upgrades';
 import { createCustomerOrder } from '../engine/CustomerSystem';
 import { RolexGameEngine } from '../engine/RolexGameEngine';
 import { AudioSystem } from '../engine/AudioSystem';
-import { loadSaveData, persistSaveData, resetSaveData } from '../engine/SaveSystem';
+import {
+  hydrateSaveDataAsync,
+  loadSaveData,
+  persistSaveData,
+  recordOrderEvent,
+  recordShiftCompleted,
+  recordUpgradePurchased,
+  resetSaveData,
+} from '../engine/SaveSystem';
 import { GameHUD } from './GameHUD';
 import { ShopModal } from './ShopModal';
 import { ShiftSummaryModal } from './ShiftSummaryModal';
@@ -107,7 +115,29 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     departureTimersRef.current.add(timerId);
   }, []);
 
-  // Persist save state automatically
+  // Hydrate & migrate rolex_empire_save_v1 into IndexedDB safely on mount
+  const userMutatedSaveRef = useRef(false);
+  useEffect(() => {
+    let active = true;
+    void hydrateSaveDataAsync().then((hydrated) => {
+      if (!active || userMutatedSaveRef.current) return;
+      setSaveData((current) => {
+        if (
+          hydrated.xp > current.xp ||
+          hydrated.ordersCompletedTotal > current.ordersCompletedTotal ||
+          hydrated.shiftCount > current.shiftCount
+        ) {
+          return hydrated;
+        }
+        return current;
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Persist save state automatically (localStorage + IndexedDB)
   useEffect(() => {
     persistSaveData(saveData);
     engineRef.current?.syncUpgradesVisuals(saveData.upgrades, saveData.employeeHired);
@@ -196,6 +226,20 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
       setShiftServedCount(shiftCountersRef.current.served);
       setShiftSalesUgx(shiftCountersRef.current.sales);
       setShiftTipsUgx(shiftCountersRef.current.tips);
+
+      userMutatedSaveRef.current = true;
+      recordOrderEvent({
+        shiftNumber: saveRef.current.shiftCount + 1,
+        recipeId: target.recipe.id,
+        recipeName: target.recipe.name,
+        personality: target.personality,
+        quality: finalQuality,
+        saleUgx,
+        tipUgx,
+        ingredientCostUgx: ingredientCost,
+        netUgx: netEarned,
+        status: 'served',
+      });
 
       setSaveData((prev) => {
         const nextXp = prev.xp + xpGain;
@@ -594,13 +638,8 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
             : Math.round(saveRef.current.satisfactionRating);
 
         const nextShiftNum = saveRef.current.shiftCount + 1;
-        setSaveData((prevSave) => ({
-          ...prevSave,
-          shiftCount: prevSave.shiftCount + 1,
-          bestShiftProfitUgx: Math.max(prevSave.bestShiftProfitUgx, netProfit),
-        }));
-
-        setShiftSummary({
+        const levelAfter = saveRef.current.level;
+        const completedStats: ShiftStats = {
           shiftNumber: nextShiftNum,
           durationSeconds: SHIFT_DURATION_SEC,
           customersServed: c.served,
@@ -611,7 +650,22 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
           expensesUgx: c.expenses,
           netProfitUgx: netProfit,
           satisfactionAvg: avgSat,
-        });
+        };
+
+        userMutatedSaveRef.current = true;
+        recordShiftCompleted(
+          completedStats,
+          getTierForLevel(levelAfter).locationName,
+          levelAfter,
+        );
+
+        setSaveData((prevSave) => ({
+          ...prevSave,
+          shiftCount: prevSave.shiftCount + 1,
+          bestShiftProfitUgx: Math.max(prevSave.bestShiftProfitUgx, netProfit),
+        }));
+
+        setShiftSummary(completedStats);
 
         ordersRef.current = [];
         setOrders([]);
@@ -685,6 +739,18 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
             missedDelta += 1;
             audioRef.current?.playAngryLeave();
             shiftCountersRef.current.missed += 1;
+            recordOrderEvent({
+              shiftNumber: s.shiftCount + 1,
+              recipeId: o.recipe.id,
+              recipeName: o.recipe.name,
+              personality: o.personality,
+              quality: 'missed',
+              saleUgx: 0,
+              tipUgx: 0,
+              ingredientCostUgx: 0,
+              netUgx: 0,
+              status: 'missed',
+            });
             scheduleOrderRemoval(o.id, 1700);
             nextOrders.push({ ...o, patienceRemaining: 0, status: 'leaving_angry' });
           } else {
@@ -734,21 +800,29 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
   }, [shiftActive, isPaused, shopOpen, clearDepartureTimers, scheduleOrderRemoval]);
 
   const handleBuyUpgrade = useCallback((upgrade: UpgradeDef) => {
-    setSaveData((prev) => {
-      const currentRank = prev.upgrades[upgrade.id] || 0;
-      if (currentRank >= upgrade.maxRank || prev.level < upgrade.requiredLevel) return prev;
-      const cost = Math.round(upgrade.costUgx * Math.pow(1.6, currentRank));
-      if (prev.cashUgx < cost) return prev;
+    const prev = saveRef.current;
+    const currentRank = prev.upgrades[upgrade.id] || 0;
+    if (currentRank >= upgrade.maxRank || prev.level < upgrade.requiredLevel) return;
+    const cost = Math.round(upgrade.costUgx * Math.pow(1.6, currentRank));
+    if (prev.cashUgx < cost) return;
 
-      audioRef.current?.playCashChime(true);
+    userMutatedSaveRef.current = true;
+    audioRef.current?.playCashChime(true);
+    recordUpgradePurchased(upgrade.id, upgrade.name, currentRank + 1, cost, prev.level);
+
+    setSaveData((curr) => {
+      const rank = curr.upgrades[upgrade.id] || 0;
+      if (rank >= upgrade.maxRank || curr.level < upgrade.requiredLevel) return curr;
+      const actualCost = Math.round(upgrade.costUgx * Math.pow(1.6, rank));
+      if (curr.cashUgx < actualCost) return curr;
       return {
-        ...prev,
-        cashUgx: prev.cashUgx - cost,
+        ...curr,
+        cashUgx: curr.cashUgx - actualCost,
         upgrades: {
-          ...prev.upgrades,
-          [upgrade.id]: currentRank + 1,
+          ...curr.upgrades,
+          [upgrade.id]: rank + 1,
         },
-        employeeHired: prev.employeeHired || upgrade.id === 'hire_juma',
+        employeeHired: curr.employeeHired || upgrade.id === 'hire_juma',
       };
     });
   }, []);

@@ -137,3 +137,44 @@ export type AssetCategory =
   | 'characters'
   | 'buildings'
   | 'environment';
+
+export interface OrderLedgerRecord {
+  id: string;
+  servedAt: number;
+  shiftNumber: number;
+  recipeId: string;
+  recipeName: string;
+  personality: CustomerPersonality;
+  quality: CookQuality | 'missed';
+  saleUgx: number;
+  tipUgx: number;
+  ingredientCostUgx: number;
+  netUgx: number;
+  status: 'served' | 'missed';
+}
+
+export interface ShiftRecord extends ShiftStats {
+  id: string;
+  completedAt: number;
+  locationName: string;
+  levelAfter: number;
+}
+
+export interface UpgradePurchaseRecord {
+  id: string;
+  purchasedAt: number;
+  upgradeId: string;
+  upgradeName: string;
+  rank: number;
+  costUgx: number;
+  levelAtPurchase: number;
+}
+
+export interface PersistenceSummary {
+  backend: 'indexeddb' | 'localstorage';
+  migratedFromLocalStorage: boolean;
+  shiftRecordsCount: number;
+  orderLedgerCount: number;
+  upgradeLogCount: number;
+  lastSavedAt: number | null;
+}

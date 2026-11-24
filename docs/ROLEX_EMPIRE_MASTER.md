@@ -66,7 +66,7 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 - **3D Rendering:** Three.js `0.187.0` (`WebGLRenderer`, `ACESFilmicToneMapping`, `SRGBColorSpace`, `PCFSoftShadowMap`, `OrbitControls`, `RoomEnvironment` + `PMREMGenerator`, `GLTFLoader`).
 - **Build & Tooling:** Vite `8.3.0`, `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`).
 - **Audio:** 100% procedural Web Audio API (`src/engine/AudioSystem.ts`) — zero external audio files.
-- **Persistence:** Browser `localStorage` (`rolex_empire_save_v1` in `src/engine/SaveSystem.ts`).
+- **Persistence:** Dual-layer **IndexedDB (`rolex_empire_db`, v1: `profile`, `shift_history`, `order_ledger`, `upgrade_log`)** + `localStorage` (`rolex_empire_save_v1`) mirror & zero-loss migration (`src/engine/IndexedDbStore.ts`, `src/engine/SaveSystem.ts`).
 - **Hosting:** Vercel static SPA (`vercel.json`) with client-side route rewrites to `/index.html`.
 - **Note:** `@google/genai`, `express`, and `tsx` exist in `package.json`, though Version 1.0 currently runs as a pure client-side Vite SPA.
 
@@ -103,9 +103,14 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 
 ## 6. Existing Save & Persistence Implementation
 
-- **Module:** `src/engine/SaveSystem.ts` (`window.localStorage`, key `rolex_empire_save_v1`).
+- **Modules:** `src/engine/IndexedDbStore.ts` + `src/engine/SaveSystem.ts` (`rolex_empire_db` v1 + `window.localStorage` mirror `rolex_empire_save_v1`).
+- **IndexedDB Object Stores (`rolex_empire_db`):**
+  - `profile`: stores `'active_save'` (`SaveData`, `schemaVersion`, `updatedAt`, `migratedFromLocalStorage`).
+  - `shift_history`: stores per-shift `ShiftRecord` entries (`by_timestamp`, `by_shift` indexes).
+  - `order_ledger`: stores every served/missed `OrderLedgerRecord` (`by_timestamp`, `by_recipe` indexes).
+  - `upgrade_log`: stores `UpgradePurchaseRecord` purchases (`by_timestamp` index).
 - **Schema (`SaveData`):** `cashUgx` (default `5000`), `totalLifetimeUgx`, `xp`, `level`, `shiftCount`, `ordersCompletedTotal`, `satisfactionRating` (`88`), `upgrades`, `employeeHired`, `bestShiftProfitUgx`, `soundMuted`.
-- **Constraint:** Milestone 2 (IndexedDB) must cleanly migrate `rolex_empire_save_v1` with zero data loss.
+- **Migration & Race Protection:** `hydrateSaveDataAsync()` runs on `HomePage` and `GameView` mount, automatically migrates legacy `rolex_empire_save_v1` data into IndexedDB with zero loss, picks the higher-progress snapshot if both exist, and serializes writes/resets via `writeQueue`.
 
 ---
 
@@ -148,12 +153,12 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 ## 11. Confirmed Technical Decisions & Development Roadmap
 
 ### Approved Roadmap Sequence
-1. **MILESTONE 1 — Kireka Environment Reconstruction (IMPLEMENTED IN CODE — Visual/Live Browser Verification Pending):**
-   - Geographical research -> Blueprint & Asset Integration -> Modular 3D Construction (`DistrictManager`, `EnvironmentMaterials`, `TrafficSystem`, `AssetManager` Draco/Box3, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts` Kireka labels) -> `tsc --noEmit` & `vite build` passing. Live visual WebGL inspection in a real desktop/mobile browser remains needed (headless Chromium is not installed in the sandbox).
-2. **MILESTONE 2 — IndexedDB Local Persistence (NEXT UP — Awaiting Authorization):**
-   - Implement cleanly migrating `rolex_empire_save_v1` with zero data loss.
-3. **MILESTONE 3 — Private Owner's Dashboard (NOT STARTED):**
-   - Build after Milestone 2 is completed and tested.
+1. **MILESTONE 1 — Kireka Environment Reconstruction (COMMITTED & PUSHED `d767b3e` — Browser Visual Inspection Pending):**
+   - Modular 3D Construction (`DistrictManager`, `EnvironmentMaterials`, `TrafficSystem`, `AssetManager` Draco/Box3, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts` Kireka labels) -> `tsc --noEmit` & `vite build` passed -> pushed to `origin/main`.
+2. **MILESTONE 2 — IndexedDB Local Persistence (IMPLEMENTED & COMPILED):**
+   - Structured `rolex_empire_db` (`profile`, `shift_history`, `order_ledger`, `upgrade_log`) cleanly migrating `rolex_empire_save_v1` with zero data loss and wired into `GameView.tsx` & `HomePage.tsx`.
+3. **MILESTONE 3 — Private Owner's Dashboard (NEXT UP — Awaiting Authorization):**
+   - Build after Milestone 2 review, reading `shift_history`, `order_ledger`, and `upgrade_log` from IndexedDB.
 4. **EXPLICITLY DEFERRED — Supabase & Cloud Features:**
    - Supabase, authentication, RLS, cloud saves, and cloud synchronization remain deferred until explicitly authorized.
 
@@ -166,25 +171,24 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 | Pre-2026-11-24 | **Version 1.0 Public Launch** | Live playable 3D Rolex business simulation at `https://rolex-empire.vercel.app` (baseline commit `a57f21a144add0b9f52631481269a9c87279415e`). |
 | 2026-11-24 | **Preliminary Makerere Kivulu Audit & Continuity Docs** | Established `docs/` structure, archived preliminary Kivulu research (now superseded as starting location). |
 | 2026-11-24 | **Kireka Location Pivot, Research & Checkpoint** | Recorded git checkpoint `a57f21a144add0b9f52631481269a9c87279415e` (`checkpoint-2026-11-24-pre-kireka`), completed Kireka geographical/railway/market research, produced Kireka Revised Blueprint & Asset Integration Plan. |
-| 2026-11-24 | **Milestone 1 — Kireka 3D Environment Implementation** | Built `DistrictManager.ts`, `EnvironmentMaterials.ts`, and `TrafficSystem.ts`; upgraded `AssetManager.ts` (Draco + `Box3` grounding + 39 IDs), `ProceduralTextures.ts` (19 textures), `StallBuilder.ts`, `CustomerSystem.ts` (zero per-frame allocations), `RolexGameEngine.ts`, and Kireka tier labels in `upgrades.ts`. Passed `npm run lint` and `npm run build`. |
+| 2026-11-24 | **Milestone 1 — Kireka 3D Environment Implementation** | Built `DistrictManager.ts`, `EnvironmentMaterials.ts`, and `TrafficSystem.ts`; upgraded `AssetManager.ts`, `ProceduralTextures.ts`, `StallBuilder.ts`, `CustomerSystem.ts`, `RolexGameEngine.ts`, and `upgrades.ts`. Committed & pushed as `d767b3e`. |
+| 2026-11-24 | **Milestone 2 — IndexedDB Local Persistence** | Created `IndexedDbStore.ts` (`rolex_empire_db` v1 with 4 object stores), upgraded `SaveSystem.ts` with automatic `rolex_empire_save_v1` migration & write queue, added ledger types in `types/game.ts`, and wired `GameView.tsx` & `HomePage.tsx`. |
 
 ---
 
 ## 13. Current Development Status
 
-- **Implemented & Compiled:** Version 1.0 gameplay/UI/HUD + full modular **Kireka Trading Centre / Kireka Main Market along Kampala–Jinja Highway** 3D environment (`DistrictManager`, `TrafficSystem`, `EnvironmentMaterials`, `AssetManager`, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts`).
-- **Pending Live Browser & Asset Follow-Ups:**
-  - Live browser visual verification & desktop/mobile WebGL inspection (sandbox lacks Chromium binary).
-  - Swapping collected external GLB/tarmac models into `AssetManager.registerGlbAsset()` once `.glb` files are committed to `/public/assets/models/`.
-- **Not Started:** Milestone 2 IndexedDB, Milestone 3 Owner's Dashboard.
+- **Implemented & Pushed (`d767b3e`):** Milestone 1 Kireka 3D environment (`DistrictManager`, `TrafficSystem`, `EnvironmentMaterials`, `AssetManager`, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts`).
+- **Implemented & Compiled (Milestone 2):** Structured IndexedDB persistence (`IndexedDbStore.ts`, `SaveSystem.ts`, `GameView.tsx`, `HomePage.tsx`, `types/game.ts`).
+- **Not Started:** Milestone 3 Owner's Dashboard (next), Supabase/cloud features (deferred).
 
 ---
 
 ## 14. Current Priority & Immediate Next Tasks
 
-1. Test the Kireka 3D viewport visually on desktop & mobile browsers (and capture reference screenshots once deployed/opened locally).
-2. Drop any owner-supplied `.glb` models (tarmac, produce, kitchenware, props) into `/public/assets/models/` and wire `glbUrl` entries in `AssetManager.ts`.
-3. Once Milestone 1 visual review passes, proceed to **Milestone 2 (IndexedDB persistence)** when authorized.
+1. Verify IndexedDB persistence & Kireka 3D viewport on desktop/mobile browsers (confirming `rolex_empire_db` stores populate across shifts, orders, and upgrades).
+2. Drop any owner-supplied `.glb` models into `/public/assets/models/` and bind `glbUrl` entries in `AssetManager.ts`.
+3. Proceed to **Milestone 3 (Private Owner's Dashboard)** when authorized.
 
 ---
 

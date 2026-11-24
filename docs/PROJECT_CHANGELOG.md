@@ -6,6 +6,23 @@ All notable planning, research, architecture, asset, and code changes for **ROLE
 
 ---
 
+## [2026-11-24 (Update 4)] — Milestone 1 Push (`d767b3e`) & Milestone 2: IndexedDB Local Persistence
+
+- **Milestone / Task:** Push Milestone 1 to GitHub + Implement Milestone 2 (Structured IndexedDB Persistence)
+- **What Changed:**
+  - Committed and pushed Milestone 1 Kireka environment + continuity documentation to `origin/main` (commit `d767b3e`, triggering Vercel deployment).
+  - Created `src/engine/IndexedDbStore.ts`: native typed IndexedDB wrapper (`rolex_empire_db`, version `1`) with 4 object stores (`profile`, `shift_history`, `order_ledger`, `upgrade_log`) and timestamp/shift/recipe indexes.
+  - Upgraded `src/engine/SaveSystem.ts`: added `hydrateSaveDataAsync()` with automatic zero-loss migration from `localStorage` (`rolex_empire_save_v1`), higher-progress conflict resolution, serialized `writeQueue` for `persistSaveData`/`resetSaveData`, and ledger helpers (`recordOrderEvent`, `recordShiftCompleted`, `recordUpgradePurchased`, `loadShiftHistory`, `loadOrderLedger`, `loadUpgradeLog`, `getPersistenceSummary`).
+  - Added typed record interfaces (`OrderLedgerRecord`, `ShiftRecord`, `UpgradePurchaseRecord`, `PersistenceSummary`) to `src/types/game.ts`.
+  - Wired `hydrateSaveDataAsync` + order/shift/upgrade ledger logging cleanly into `src/components/GameView.tsx` and `src/pages/HomePage.tsx` without modifying gameplay balance or UI layout.
+  - Added `docs/milestones/2026-11-24-indexeddb-local-persistence.md`.
+- **Files / Systems Affected:** `src/engine/{IndexedDbStore.ts,SaveSystem.ts}`, `src/types/game.ts`, `src/components/GameView.tsx`, `src/pages/HomePage.tsx`, `docs/`.
+- **What Was Tested:** `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`), and protected file verification (`public/ads.txt`, `index.html`, `vercel.json`, `recipes.ts`, `App.tsx`).
+- **Test Results:** Zero TypeScript errors, Vite production build succeeded cleanly. Live browser IndexedDB inspection pending desktop/mobile browser test.
+- **Next Recommended Action:** Push Milestone 2 commit to `origin/main`, verify `rolex_empire_db` migration/persistence in browser DevTools, then proceed to Milestone 3 (Owner's Dashboard) when authorized.
+
+---
+
 ## [2026-11-24 (Update 3)] — Milestone 1: Kireka Environment 3D Implementation
 
 - **Milestone / Task:** Milestone 1 Approved 3D Construction — Kireka Trading Centre & Kireka Main Market along Kampala–Jinja Highway

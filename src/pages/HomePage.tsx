@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Play, BookOpen, Flame, Coins, TrendingUp } from 'lucide-react';
 import { AppRoute } from '../components/SiteLayout';
 import { AdBannerSlot } from '../components/AdBannerSlot';
-import { loadSaveData } from '../engine/SaveSystem';
+import { hydrateSaveDataAsync, loadSaveData } from '../engine/SaveSystem';
 import { getTierForLevel } from '../data/upgrades';
 
 interface HomePageProps {
@@ -10,7 +10,18 @@ interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
-  const save = loadSaveData();
+  const [save, setSave] = useState(() => loadSaveData());
+
+  useEffect(() => {
+    let active = true;
+    void hydrateSaveDataAsync().then((hydrated) => {
+      if (active) setSave(hydrated);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const tier = getTierForLevel(save.level);
   const hasPlayedBefore = save.shiftCount > 0 || save.ordersCompletedTotal > 0;
 
