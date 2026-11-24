@@ -57,6 +57,11 @@ export default function App() {
 
   useEffect(() => {
     document.title = ROUTE_TITLES[route];
+    const canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
+    const fullUrl = window.location.origin + (route === '/' ? '/' : route);
+    if (canonical) canonical.href = fullUrl;
+    if (ogUrl) ogUrl.content = fullUrl;
   }, [route]);
 
   if (route === '/play') {

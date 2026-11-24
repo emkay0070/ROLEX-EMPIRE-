@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>/</loc>
+    <loc>https://rolex-empire.vercel.app/</loc>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>/play</loc>
+    <loc>https://rolex-empire.vercel.app/play</loc>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>/how-to-play</loc>
+    <loc>https://rolex-empire.vercel.app/how-to-play</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>/about</loc>
+    <loc>https://rolex-empire.vercel.app/about</loc>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>/privacy-policy</loc>
+    <loc>https://rolex-empire.vercel.app/privacy-policy</loc>
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>/contact</loc>
+    <loc>https://rolex-empire.vercel.app/contact</loc>
     <priority>0.5</priority>
   </url>
 </urlset>
