@@ -118,6 +118,7 @@ export class AssetManager {
       { id: 'env_umbrella_canopy', category: 'furniture', folder: 'props' },
       { id: 'env_charcoal_sack', category: 'furniture', folder: 'props' },
       // Characters
+      { id: 'char_vendor', category: 'characters', folder: 'characters' },
       { id: 'char_customer', category: 'characters', folder: 'characters' },
       { id: 'char_assistant_juma', category: 'characters', folder: 'characters' },
       // Kireka Buildings

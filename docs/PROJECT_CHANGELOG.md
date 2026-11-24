@@ -6,6 +6,20 @@ All notable planning, research, architecture, asset, and code changes for **ROLE
 
 ---
 
+## [2026-11-24 (Update 7)] — Live Rolex Vendor, Cooking Process Craft Animations & Auto Action Camera
+
+- **Milestone / Task:** Gameplay Immersion Upgrade — Visible Articulated Vendor + Close-Up Cooking Craft Camera
+- **What Changed:**
+  - Added `char_vendor` slot (`targetHeight: 1.74`, `enabled: false`) in `public/assets/models/manifest.json` and `AssetManager.ts` so the primary chef is both procedurally rendered immediately and GLB-swappable later.
+  - Upgraded `src/engine/StallBuilder.ts`: built the articulated primary Kampala Rolex Vendor (`vendorGroup`, head, torso, apron, left/right arm pivots, plus held knife, rolling pin, flat spatula, and fresh egg props) standing behind the counter (`z = -0.82`); added Station 1 flattening dough disc (`prepDoughDisc`), live active Chopping Board (`chopVeggieMesh` + bouncing `choppedBits`), Kampala stainless mixing cup (`kikopo`, `eggCupLiquid` rising with egg count, spinning `eggCupWhisk`, and `crackEggGroup` split shells + falling golden yolk), and 12 dynamic omelette veggie chunks (`panOmeletteToppings`) attached to `panOmelette`.
+  - Upgraded `src/engine/RolexGameEngine.ts`: added `CookingActionKind` (`roll_dough`, `chop`, `crack_egg`, `pour_egg`, `flip_tava`, `roll_rolex`, `serve`) and `CameraFocusTarget` (`overview`, `prep`, `mix`, `tava`, `roll`, `counter`); implemented smooth X-lane vendor sliding (safely clearing Assistant Chef Juma at `-1.35`), zero-GC per-frame arm/tool/dough/chop/egg-crack/roll animations, queued `prep -> tava` follow-up camera transition, and instant OrbitControls `start` yield (`onUserCameraInteract`) so manual player orbit/zoom always wins.
+  - Wired `autoCamera` (enabled by default) and `Auto` toggle button into `src/components/GameView.tsx` and `src/components/GameHUD.tsx`.
+- **Files / Systems Affected:** `public/assets/models/manifest.json`, `src/engine/{AssetManager.ts,StallBuilder.ts,RolexGameEngine.ts}`, `src/components/{GameView.tsx,GameHUD.tsx}`, `docs/`.
+- **What Was Tested:** Pending `npm run lint` (`tsc --noEmit`) + `npm run build` (`vite build`).
+- **Next Recommended Action:** Visually inspect live gameplay in browser during a 60s shift to tune close-up framing or add custom `char_vendor.glb` if desired; revisit AdSense placement after site review completes.
+
+---
+
 ## [2026-11-24 (Update 6)] — `public/assets/models/` Directory & Declarative `.glb` Integration Pipeline
 
 - **Milestone / Task:** Initialize `public/assets/models/` drop-in folder hierarchy + `manifest.json` + scene/dashboard integration

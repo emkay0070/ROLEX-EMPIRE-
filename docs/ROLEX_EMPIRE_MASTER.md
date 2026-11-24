@@ -182,16 +182,17 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 - **Implemented & Pushed (`d767b3e`):** Milestone 1 Kireka 3D environment (`DistrictManager`, `TrafficSystem`, `EnvironmentMaterials`, `AssetManager`, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts`).
 - **Implemented & Pushed (`1c5e96a`):** Milestone 2 structured IndexedDB persistence (`IndexedDbStore.ts`, `SaveSystem.ts`, `GameView.tsx`, `HomePage.tsx`, `types/game.ts`).
 - **Implemented & Pushed (`06148ca`):** Milestone 3 Private Owner's Dashboard at `/owner` (`OwnerDashboardPage.tsx`, `SaveSystem.ts`, `App.tsx`, `HomePage.tsx`, `SiteLayout.tsx`).
-- **Implemented & Compiled (Models Directory & GLB Pipeline):** Initialized `public/assets/models/` (10 subfolders, `manifest.json`, `README.md`), upgraded `AssetManager.ts` with `manifest.json` + `rotationDeg`/`offset`/`targetMaxDim`, fixed `StallBuilder.ts` prep-station hitbox isolation & wired all kitchen/ingredient/furniture/prop slots, added GLB overrides in `DistrictManager.ts` + `TrafficSystem.ts`, and added the live **3D Models** directory view in `OwnerDashboardPage.tsx`.
-- **Deferred:** Supabase, authentication, RLS, cloud sync (explicitly out of scope unless requested later).
+- **Implemented & Pushed (`d9efb4f`):** `public/assets/models/` drop-in GLB directory (`manifest.json`, `README.md`, 44 slots) + `AssetManager` / `StallBuilder` / `DistrictManager` / `TrafficSystem` wiring + **3D Models** tab in `OwnerDashboardPage.tsx`.
+- **Implemented (Vendor Craft & Auto Action Camera):** Articulated primary Rolex Vendor (`char_vendor`) standing behind counter, live dough rolling, colored veggie chopping on board, egg cracking & whisking in stainless `kikopo` cup, colored omelette flecks on `tava`, kraft paper wrapping rotation, and toggleable `Auto` action close-up camera in `RolexGameEngine.ts`, `StallBuilder.ts`, `GameView.tsx`, and `GameHUD.tsx` (yields automatically on OrbitControls drag).
+- **Deferred:** Supabase, authentication, RLS, cloud sync (explicitly out of scope unless requested later). Post-review AdSense interstitial/shift-end evaluation kept paused until Google AdSense review completes.
 
 ---
 
 ## 14. Current Priority & Immediate Next Tasks
 
-1. Drop collected `.glb` files into `public/assets/models/<folder>/`, set `"enabled": true` in `public/assets/models/manifest.json`, and inspect them on `/play` and `/owner` -> **3D Models**.
-2. Fine-tune `targetHeight` / `targetMaxDim`, `rotationDeg`, or `offset` in `public/assets/models/manifest.json` per imported model if any asset needs orientation or scale adjustment.
-3. Keep Supabase / cloud synchronization deferred until explicitly authorized by the project owner.
+1. Test the new vendor animations & Auto Action Camera live on `/play` across desktop & mobile after Vercel deploy.
+2. Drop collected `.glb` files into `public/assets/models/<folder>/`, set `"enabled": true` in `public/assets/models/manifest.json`, and inspect them on `/play` and `/owner` -> **3D Models**.
+3. Keep AdSense configuration untouched until review completes, and keep Supabase / cloud synchronization deferred until explicitly authorized.
 
 ---
 

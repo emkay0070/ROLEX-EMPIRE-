@@ -8,11 +8,31 @@ export interface StallRig {
   servingTrayPos: THREE.Vector3;
   panChapati: THREE.Mesh;
   panOmelette: THREE.Mesh;
+  panOmeletteToppings: THREE.Mesh[];
   panRolled: THREE.Object3D;
   trayRolled: THREE.Object3D;
   emberGlow: THREE.Mesh;
   stoveLight: THREE.PointLight;
   bulbLight: THREE.PointLight;
+  vendorGroup: THREE.Group;
+  vendorHead: THREE.Object3D | null;
+  vendorTorso: THREE.Object3D | null;
+  vendorLeftArm: THREE.Object3D | null;
+  vendorRightArm: THREE.Object3D | null;
+  vendorKnife: THREE.Object3D | null;
+  vendorRollingPin: THREE.Object3D | null;
+  vendorSpatula: THREE.Object3D | null;
+  vendorEggProp: THREE.Object3D | null;
+  prepDoughDisc: THREE.Mesh;
+  prepPin: THREE.Object3D | null;
+  chopVeggieMesh: THREE.Mesh;
+  choppedBits: THREE.Mesh[];
+  eggCupLiquid: THREE.Mesh;
+  eggCupWhisk: THREE.Group;
+  crackEggGroup: THREE.Group;
+  crackShellLeft: THREE.Mesh;
+  crackShellRight: THREE.Mesh;
+  crackYolkDrop: THREE.Mesh;
   jumaGroup: THREE.Group;
   jumaRightArm: THREE.Object3D | null;
   canopyExtension: THREE.Group;
@@ -386,6 +406,7 @@ export async function buildKampalaRolexStall(
       new THREE.CylinderGeometry(0.025, 0.025, 0.36, 12),
       new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.7 }),
     );
+    pin.name = 'prep_rolling_pin';
     pin.rotation.z = Math.PI / 2;
     pin.rotation.y = 0.35;
     pin.position.set(0.04, 0.055, 0.14);
@@ -393,7 +414,18 @@ export async function buildKampalaRolexStall(
     g.add(pin);
     return g;
   });
+  const prepPin = rollingPinBoard.getObjectByName('prep_rolling_pin') || null;
   prepGroup.add(rollingPinBoard);
+
+  // Live dough ball -> flattened chapati disc on the wooden prep board
+  const prepDoughDisc = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.115, 0.014, 20),
+    new THREE.MeshStandardMaterial({ color: 0xf4e3b2, roughness: 0.86 }),
+  );
+  prepDoughDisc.position.set(0, 0.042, 0);
+  prepDoughDisc.scale.set(0.65, 1.4, 0.65);
+  prepDoughDisc.castShadow = true;
+  prepGroup.add(prepDoughDisc);
 
   // Dough balls ready to roll
   const doughStack = await assetManager.loadOrBuild('food_chapati_raw', () => {
@@ -624,6 +656,23 @@ export async function buildKampalaRolexStall(
   panOmelette.visible = false;
   stoveGroup.add(panOmelette);
 
+  // Chopped onion/tomato/cabbage/beef flecks resting inside the sizzling omelette
+  const panOmeletteToppings: THREE.Mesh[] = [];
+  const toppingGeo = new THREE.BoxGeometry(0.028, 0.014, 0.024);
+  for (let i = 0; i < 12; i++) {
+    const tMesh = new THREE.Mesh(
+      toppingGeo,
+      new THREE.MeshStandardMaterial({ color: 0xd93829, roughness: 0.65 }),
+    );
+    const angle = (i / 12) * Math.PI * 2 + (i % 3) * 0.25;
+    const radius = 0.065 + (i % 3) * 0.048;
+    tMesh.position.set(Math.cos(angle) * radius, 0.014, Math.sin(angle) * radius);
+    tMesh.rotation.set(i * 0.2, i * 0.65, 0);
+    tMesh.visible = false;
+    panOmelette.add(tMesh);
+    panOmeletteToppings.push(tMesh);
+  }
+
   const panRolled = await assetManager.loadOrBuild('food_rolex_rolled', () =>
     createRolledRolexMesh(textures.chapatiSurface),
   );
@@ -777,6 +826,328 @@ export async function buildKampalaRolexStall(
 
   stallGroup.add(servingGroup);
 
+  // --- LIVE CHOPPING STATION (Between tava & ingredient bowls: x = 0.28, z = 0.26) ---
+  const chopStation = new THREE.Group();
+  chopStation.position.set(0.28, 0.96, 0.26);
+
+  const liveChopBoard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.024, 0.24),
+    frameWoodMat,
+  );
+  liveChopBoard.position.y = 0.012;
+  liveChopBoard.receiveShadow = true;
+  liveChopBoard.castShadow = true;
+  chopStation.add(liveChopBoard);
+
+  const chopVeggieMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.044, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xb8426d, roughness: 0.68 }),
+  );
+  chopVeggieMesh.position.set(-0.02, 0.05, 0);
+  chopVeggieMesh.scale.set(1.15, 0.78, 1.0);
+  chopVeggieMesh.visible = false;
+  chopVeggieMesh.castShadow = true;
+  chopStation.add(chopVeggieMesh);
+
+  const choppedBits: THREE.Mesh[] = [];
+  const bitGeo = new THREE.BoxGeometry(0.022, 0.014, 0.02);
+  for (let b = 0; b < 6; b++) {
+    const bit = new THREE.Mesh(
+      bitGeo,
+      new THREE.MeshStandardMaterial({ color: 0xb8426d, roughness: 0.7 }),
+    );
+    bit.position.set(0.05 + (b % 3) * 0.028, 0.032, -0.03 + Math.floor(b / 3) * 0.045);
+    bit.rotation.y = b * 0.6;
+    bit.visible = false;
+    chopStation.add(bit);
+    choppedBits.push(bit);
+  }
+  stallGroup.add(chopStation);
+
+  // --- LIVE KAMPALA EGG MIXING CUP ("KIKOPO") STATION (x = 0.86, z = 0.34) ---
+  const eggCupGroup = new THREE.Group();
+  eggCupGroup.position.set(0.86, 0.96, 0.34);
+
+  const cupMetalMat = new THREE.MeshStandardMaterial({
+    color: 0xdbe2ea,
+    metalness: 0.88,
+    roughness: 0.22,
+  });
+  const cupBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.068, 0.054, 0.145, 18),
+    cupMetalMat,
+  );
+  cupBody.position.y = 0.0725;
+  cupBody.castShadow = true;
+  cupBody.receiveShadow = true;
+  eggCupGroup.add(cupBody);
+
+  const cupHandle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.038, 0.008, 8, 14, Math.PI),
+    cupMetalMat,
+  );
+  cupHandle.rotation.z = -Math.PI / 2;
+  cupHandle.position.set(0.066, 0.08, 0);
+  eggCupGroup.add(cupHandle);
+
+  const cupRimInner = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 0.01, 16),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 }),
+  );
+  cupRimInner.position.y = 0.142;
+  eggCupGroup.add(cupRimInner);
+
+  const eggCupLiquid = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.058, 0.055, 0.024, 16),
+    new THREE.MeshStandardMaterial({
+      color: 0xfacc15,
+      emissive: 0xca8a04,
+      emissiveIntensity: 0.22,
+      roughness: 0.25,
+    }),
+  );
+  eggCupLiquid.position.y = 0.146;
+  eggCupLiquid.visible = false;
+  eggCupGroup.add(eggCupLiquid);
+
+  const eggCupWhisk = new THREE.Group();
+  eggCupWhisk.position.set(0.01, 0.12, 0);
+  eggCupWhisk.rotation.z = -0.22;
+  const whiskStem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.007, 0.007, 0.16, 8),
+    cupMetalMat,
+  );
+  whiskStem.position.y = 0.09;
+  eggCupWhisk.add(whiskStem);
+  const whiskLoop1 = new THREE.Mesh(
+    new THREE.TorusGeometry(0.026, 0.003, 6, 14),
+    cupMetalMat,
+  );
+  whiskLoop1.position.y = 0.012;
+  eggCupWhisk.add(whiskLoop1);
+  const whiskLoop2 = whiskLoop1.clone();
+  whiskLoop2.rotation.y = Math.PI / 2;
+  eggCupWhisk.add(whiskLoop2);
+  eggCupGroup.add(eggCupWhisk);
+
+  // Cracking eggshell halves + golden yolk drop directly above the kikopo cup
+  const crackEggGroup = new THREE.Group();
+  crackEggGroup.position.set(0, 0.26, 0);
+  crackEggGroup.visible = false;
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0xead0a8, roughness: 0.42 });
+  const crackShellLeft = new THREE.Mesh(
+    new THREE.SphereGeometry(0.032, 10, 8, 0, Math.PI),
+    shellMat,
+  );
+  crackShellLeft.rotation.z = Math.PI / 2;
+  crackShellLeft.position.set(-0.018, 0, 0);
+  crackEggGroup.add(crackShellLeft);
+
+  const crackShellRight = new THREE.Mesh(
+    new THREE.SphereGeometry(0.032, 10, 8, 0, Math.PI),
+    shellMat,
+  );
+  crackShellRight.rotation.z = -Math.PI / 2;
+  crackShellRight.position.set(0.018, 0, 0);
+  crackEggGroup.add(crackShellRight);
+
+  const crackYolkDrop = new THREE.Mesh(
+    new THREE.SphereGeometry(0.02, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.2 }),
+  );
+  crackYolkDrop.scale.y = 1.3;
+  crackYolkDrop.position.set(0, -0.04, 0);
+  crackEggGroup.add(crackYolkDrop);
+  eggCupGroup.add(crackEggGroup);
+
+  stallGroup.add(eggCupGroup);
+
+  // --- PRIMARY ROLEX VENDOR (Player Chef standing behind counter) ---
+  const vendorGroup = new THREE.Group();
+  vendorGroup.position.set(-0.15, 0, -0.82);
+
+  const vendorRigRoot = await assetManager.loadOrBuild('char_vendor', () => {
+    const vg = new THREE.Group();
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0x52301f, roughness: 0.62 });
+    const trouserMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+    const shoeMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.75 });
+    const shirtMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.76 });
+    const apronMat = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.8 });
+    const capMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.7 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: 0xfcdc04, roughness: 0.55 });
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.4 });
+    const steelMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      metalness: 0.88,
+      roughness: 0.2,
+    });
+
+    // Legs & Shoes
+    for (const lx of [-0.11, 0.11]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.06, 0.78, 10), trouserMat);
+      leg.position.set(lx, 0.42, 0);
+      leg.castShadow = true;
+      vg.add(leg);
+
+      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.07, 0.2), shoeMat);
+      shoe.position.set(lx, 0.035, 0.04);
+      vg.add(shoe);
+    }
+
+    // Upper Torso & Kampala Green Chef Apron
+    const torsoGroup = new THREE.Group();
+    torsoGroup.name = 'vendor_torso';
+    torsoGroup.position.y = 1.12;
+    vg.add(torsoGroup);
+
+    const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.185, 0.62, 14), shirtMat);
+    chest.castShadow = true;
+    torsoGroup.add(chest);
+
+    const apronBody = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.64, 0.055), apronMat);
+    apronBody.position.set(0, -0.08, 0.185);
+    apronBody.castShadow = true;
+    torsoGroup.add(apronBody);
+
+    const apronPocket = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.02), trimMat);
+    apronPocket.position.set(0, -0.14, 0.215);
+    torsoGroup.add(apronPocket);
+
+    // Head & Cap
+    const headGroup = new THREE.Group();
+    headGroup.name = 'vendor_head';
+    headGroup.position.set(0, 1.56, 0.01);
+    vg.add(headGroup);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 12), skinMat);
+    head.castShadow = true;
+    headGroup.add(head);
+
+    for (const ex of [-0.052, 0.052]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), eyeMat);
+      eye.position.set(ex, 0.02, 0.135);
+      headGroup.add(eye);
+    }
+
+    const capCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.148, 0.154, 0.11, 14), capMat);
+    capCrown.position.y = 0.11;
+    headGroup.add(capCrown);
+
+    const capVisor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.13), trimMat);
+    capVisor.position.set(0, 0.075, 0.12);
+    capVisor.rotation.x = 0.16;
+    headGroup.add(capVisor);
+
+    // Articulated Left Arm (pivot at shoulder)
+    const leftArmPivot = new THREE.Group();
+    leftArmPivot.name = 'vendor_left_arm';
+    leftArmPivot.position.set(-0.24, 1.36, 0.02);
+    leftArmPivot.rotation.x = -0.58;
+    vg.add(leftArmPivot);
+
+    const lUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.048, 0.3, 10), shirtMat);
+    lUpper.position.y = -0.13;
+    lUpper.castShadow = true;
+    leftArmPivot.add(lUpper);
+
+    const lForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.04, 0.3, 10), skinMat);
+    lForearm.position.set(0, -0.34, 0.11);
+    lForearm.rotation.x = -0.82;
+    lForearm.castShadow = true;
+    leftArmPivot.add(lForearm);
+
+    const lHand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), skinMat);
+    lHand.position.set(0, -0.44, 0.24);
+    leftArmPivot.add(lHand);
+
+    // Articulated Right Arm + Held Utensils (pivot at shoulder)
+    const rightArmPivot = new THREE.Group();
+    rightArmPivot.name = 'vendor_right_arm';
+    rightArmPivot.position.set(0.24, 1.36, 0.02);
+    rightArmPivot.rotation.x = -0.62;
+    vg.add(rightArmPivot);
+
+    const rUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.048, 0.3, 10), shirtMat);
+    rUpper.position.y = -0.13;
+    rUpper.castShadow = true;
+    rightArmPivot.add(rUpper);
+
+    const rForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.04, 0.3, 10), skinMat);
+    rForearm.position.set(0, -0.34, 0.11);
+    rForearm.rotation.x = -0.82;
+    rForearm.castShadow = true;
+    rightArmPivot.add(rForearm);
+
+    const rHand = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 8), skinMat);
+    rHand.position.set(0, -0.44, 0.24);
+    rightArmPivot.add(rHand);
+
+    // Held Tool 1: Chef Knife
+    const vKnife = new THREE.Group();
+    vKnife.name = 'vendor_knife';
+    vKnife.position.set(0, -0.45, 0.28);
+    vKnife.visible = false;
+    const vkHandle = new THREE.Mesh(
+      new THREE.BoxGeometry(0.024, 0.028, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.65 }),
+    );
+    const vkBlade = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.042, 0.18), steelMat);
+    vkBlade.position.set(0, -0.006, 0.13);
+    vKnife.add(vkHandle, vkBlade);
+    rightArmPivot.add(vKnife);
+
+    // Held Tool 2: Wooden Rolling Pin
+    const vPin = new THREE.Group();
+    vPin.name = 'vendor_rolling_pin';
+    vPin.position.set(-0.24, -0.46, 0.27);
+    vPin.visible = false;
+    const vpBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.026, 0.026, 0.38, 12),
+      new THREE.MeshStandardMaterial({ color: 0xa16207, roughness: 0.7 }),
+    );
+    vpBody.rotation.z = Math.PI / 2;
+    vPin.add(vpBody);
+    rightArmPivot.add(vPin);
+
+    // Held Tool 3: Flat Metal Spatula / Turner
+    const vSpatula = new THREE.Group();
+    vSpatula.name = 'vendor_spatula';
+    vSpatula.position.set(0, -0.45, 0.29);
+    vSpatula.visible = false;
+    const vsStem = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.012, 0.18), steelMat);
+    vsStem.position.z = 0.08;
+    const vsBlade = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.008, 0.1), steelMat);
+    vsBlade.position.set(0, -0.01, 0.21);
+    vsBlade.rotation.x = 0.25;
+    vSpatula.add(vsStem, vsBlade);
+    rightArmPivot.add(vSpatula);
+
+    // Held Tool 4: Fresh Egg in Hand
+    const vEgg = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xe7c697, roughness: 0.45 }),
+    );
+    vEgg.name = 'vendor_egg_prop';
+    vEgg.scale.y = 1.28;
+    vEgg.position.set(0, -0.45, 0.29);
+    vEgg.visible = false;
+    rightArmPivot.add(vEgg);
+
+    return vg;
+  });
+
+  const vendorHead = vendorRigRoot.getObjectByName('vendor_head') || null;
+  const vendorTorso = vendorRigRoot.getObjectByName('vendor_torso') || null;
+  const vendorLeftArm = vendorRigRoot.getObjectByName('vendor_left_arm') || null;
+  const vendorRightArm = vendorRigRoot.getObjectByName('vendor_right_arm') || null;
+  const vendorKnife = vendorRigRoot.getObjectByName('vendor_knife') || null;
+  const vendorRollingPin = vendorRigRoot.getObjectByName('vendor_rolling_pin') || null;
+  const vendorSpatula = vendorRigRoot.getObjectByName('vendor_spatula') || null;
+  const vendorEggProp = vendorRigRoot.getObjectByName('vendor_egg_prop') || null;
+
+  vendorGroup.add(vendorRigRoot);
+  stallGroup.add(vendorGroup);
+
   // --- ASSISTANT CHEF JUMA NPC (Unlocked when hired) ---
   const jumaGroup = new THREE.Group();
   jumaGroup.position.set(-1.35, 0, -0.82);
@@ -858,11 +1229,31 @@ export async function buildKampalaRolexStall(
     servingTrayPos: new THREE.Vector3(1.45, 1.05, 0.2),
     panChapati,
     panOmelette,
+    panOmeletteToppings,
     panRolled,
     trayRolled,
     emberGlow,
     stoveLight,
     bulbLight,
+    vendorGroup,
+    vendorHead,
+    vendorTorso,
+    vendorLeftArm,
+    vendorRightArm,
+    vendorKnife,
+    vendorRollingPin,
+    vendorSpatula,
+    vendorEggProp,
+    prepDoughDisc,
+    prepPin,
+    chopVeggieMesh,
+    choppedBits,
+    eggCupLiquid,
+    eggCupWhisk,
+    crackEggGroup,
+    crackShellLeft,
+    crackShellRight,
+    crackYolkDrop,
     jumaGroup,
     jumaRightArm,
     canopyExtension,

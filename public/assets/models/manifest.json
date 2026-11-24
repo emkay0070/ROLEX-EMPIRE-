@@ -496,6 +496,18 @@
       "notes": "Moving saloon cars along Kampala-Jinja Highway (face +X forward)."
     },
     {
+      "id": "char_vendor",
+      "category": "characters",
+      "folder": "characters",
+      "slotLabel": "Primary Rolex Vendor (Player Chef)",
+      "glbUrl": "/assets/models/characters/char_vendor.glb",
+      "enabled": false,
+      "targetHeight": 1.74,
+      "rotationDeg": [0, 0, 0],
+      "offset": [0, 0, 0],
+      "notes": "Main vendor standing behind the Rolex counter."
+    },
+    {
       "id": "char_assistant_juma",
       "category": "characters",
       "folder": "characters",

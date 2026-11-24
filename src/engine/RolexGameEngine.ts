@@ -7,6 +7,7 @@ import { createProceduralTextures, ProceduralTextureSet } from './ProceduralText
 import { buildKampalaRolexStall, StallRig } from './StallBuilder';
 import { buildKirekaDistrict, DistrictHandle } from './DistrictManager';
 import { TrafficSystem } from './TrafficSystem';
+import { INGREDIENTS } from '../data/recipes';
 import {
   buildUgandanCustomerMesh,
   CustomerVisual,
@@ -14,28 +15,48 @@ import {
   updateCustomerVisuals,
 } from './CustomerSystem';
 
+export type CookingActionKind =
+  | 'roll_dough'
+  | 'chop'
+  | 'crack_egg'
+  | 'pour_egg'
+  | 'flip_tava'
+  | 'roll_rolex'
+  | 'serve';
+
+export type CameraFocusTarget = CameraPreset | 'mix' | 'roll';
+
 export interface EngineCallbacks {
   onStationClicked?: (station: 'prep' | 'tava' | 'ingredients' | 'serve') => void;
   onCustomerClicked?: (customerId: string) => void;
+  onUserCameraInteract?: () => void;
   onWebglError?: (message: string) => void;
 }
 
-const CAMERA_PRESETS: Record<CameraPreset, { pos: THREE.Vector3; target: THREE.Vector3 }> = {
+const CAMERA_TARGETS: Record<CameraFocusTarget, { pos: THREE.Vector3; target: THREE.Vector3 }> = {
   overview: {
-    pos: new THREE.Vector3(0.42, 3.32, 6.45),
-    target: new THREE.Vector3(0, 1.05, 0.35),
+    pos: new THREE.Vector3(0.42, 3.05, 5.75),
+    target: new THREE.Vector3(0, 1.12, 0.05),
   },
   tava: {
-    pos: new THREE.Vector3(-0.15, 2.05, 1.42),
-    target: new THREE.Vector3(-0.15, 1.15, 0.02),
+    pos: new THREE.Vector3(0.14, 1.86, 1.28),
+    target: new THREE.Vector3(-0.15, 1.15, -0.02),
   },
   prep: {
-    pos: new THREE.Vector3(-1.18, 2.0, 1.55),
-    target: new THREE.Vector3(-1.18, 1.05, 0.05),
+    pos: new THREE.Vector3(-0.98, 1.86, 1.32),
+    target: new THREE.Vector3(-1.18, 1.04, -0.06),
+  },
+  mix: {
+    pos: new THREE.Vector3(0.5, 1.8, 1.38),
+    target: new THREE.Vector3(0.5, 1.06, 0.16),
+  },
+  roll: {
+    pos: new THREE.Vector3(0.28, 1.76, 1.22),
+    target: new THREE.Vector3(0.02, 1.12, 0.02),
   },
   counter: {
-    pos: new THREE.Vector3(1.15, 2.15, 2.35),
-    target: new THREE.Vector3(0.65, 1.05, 0.45),
+    pos: new THREE.Vector3(1.28, 2.04, 2.18),
+    target: new THREE.Vector3(0.85, 1.12, 0.35),
   },
 };
 
@@ -74,7 +95,13 @@ export class RolexGameEngine {
   private customerVisuals: CustomerVisual[] = [];
 
   private activeCameraGoal: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
+  private queuedCameraGoal: { focus: CameraFocusTarget; delay: number } | null = null;
   private cookingState: CookingState | null = null;
+  private employeeHired = false;
+  private actionKind: CookingActionKind | null = null;
+  private actionElapsed = 0;
+  private actionDuration = 0.85;
+  private vendorTargetX = -0.15;
   private frameId = 0;
   private disposed = false;
 
@@ -112,24 +139,26 @@ export class RolexGameEngine {
     this.scene.fog = new THREE.FogExp2(0xdce8f5, 0.012);
 
     this.camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 180);
-    this.camera.position.copy(CAMERA_PRESETS.overview.pos);
+    this.camera.position.copy(CAMERA_TARGETS.overview.pos);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.target.copy(CAMERA_PRESETS.overview.target);
+    this.controls.target.copy(CAMERA_TARGETS.overview.target);
     this.controls.enableDamping = !this.isSoftwareGl;
     this.controls.dampingFactor = 0.07;
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.minPolarAngle = 0.25;
     this.controls.minAzimuthAngle = -Math.PI * 0.45;
     this.controls.maxAzimuthAngle = Math.PI * 0.45;
-    this.controls.minDistance = 1.5;
+    this.controls.minDistance = 1.15;
     this.controls.maxDistance = 13.5;
     this.controls.enablePan = false;
     this.controls.update();
 
     this.controls.addEventListener('start', () => {
-      // Cancel scripted camera transition if player grabs the viewport
+      // Yield immediately if the player drags or zooms manually
       this.activeCameraGoal = null;
+      this.queuedCameraGoal = null;
+      this.callbacks.onUserCameraInteract?.();
     });
 
     this.assetManager = new AssetManager();
@@ -261,20 +290,68 @@ export class RolexGameEngine {
   };
 
   public setCameraPreset(preset: CameraPreset): void {
-    const p = CAMERA_PRESETS[preset];
+    this.queuedCameraGoal = null;
+    this.setCameraFocus(preset);
+  }
+
+  public setCameraFocus(focus: CameraFocusTarget): void {
+    const p = CAMERA_TARGETS[focus];
     this.activeCameraGoal = {
       pos: p.pos.clone(),
       target: p.target.clone(),
     };
   }
 
+  public scheduleCameraFocus(focus: CameraFocusTarget, delaySec: number): void {
+    this.queuedCameraGoal = { focus, delay: Math.max(0, delaySec) };
+  }
+
+  public clearScheduledCamera(): void {
+    this.queuedCameraGoal = null;
+  }
+
+  public triggerCookingAction(kind: CookingActionKind, colorHex?: string): void {
+    this.actionKind = kind;
+    this.actionElapsed = 0;
+
+    if (kind === 'roll_dough') this.actionDuration = 1.05;
+    else if (kind === 'chop') this.actionDuration = 0.85;
+    else if (kind === 'crack_egg') this.actionDuration = 0.92;
+    else if (kind === 'pour_egg') this.actionDuration = 0.78;
+    else if (kind === 'flip_tava') this.actionDuration = 0.72;
+    else if (kind === 'roll_rolex') this.actionDuration = 0.85;
+    else this.actionDuration = 0.95;
+
+    if (this.stallRig) {
+      if (kind === 'chop' && colorHex) {
+        const vegMat = this.stallRig.chopVeggieMesh.material as THREE.MeshStandardMaterial;
+        vegMat.color.set(colorHex);
+        for (const bit of this.stallRig.choppedBits) {
+          (bit.material as THREE.MeshStandardMaterial).color.set(colorHex);
+        }
+      }
+      if (kind === 'roll_dough') {
+        this.stallRig.prepDoughDisc.scale.set(0.65, 1.4, 0.65);
+      }
+    }
+  }
+
   public syncCookingVisuals(state: CookingState): void {
     this.cookingState = state;
     if (!this.stallRig) return;
 
-    const { panChapati, panOmelette, panRolled, trayRolled } = this.stallRig;
+    const {
+      panChapati,
+      panOmelette,
+      panOmeletteToppings,
+      panRolled,
+      trayRolled,
+      eggCupLiquid,
+      chopVeggieMesh,
+      choppedBits,
+    } = this.stallRig;
 
-    // Reset visibility first
+    // Reset pan visibility first
     panChapati.visible = false;
     panOmelette.visible = false;
     panRolled.visible = false;
@@ -291,11 +368,11 @@ export class RolexGameEngine {
       } else if (p <= 0.9) {
         this._tmpColor.setHex(0xe5a94c);
       } else {
-        this._tmpColor.setHex(0x6b3a19); // Overcooked char
+        this._tmpColor.setHex(0x6b3a19);
       }
       chapMat.color.copy(this._tmpColor);
     } else if (state.stage === 'mixing_eggs' || state.stage === 'frying_omelette') {
-      panOmelette.visible = true;
+      panOmelette.visible = state.stage === 'frying_omelette';
       const scale = 0.72 + Math.min(0.32, state.eggCount * 0.11);
       panOmelette.scale.set(scale, 1, scale);
       const p = state.omeletteProgress / 100;
@@ -314,6 +391,7 @@ export class RolexGameEngine {
     } else if (state.stage === 'rolling') {
       panRolled.visible = true;
       panRolled.scale.setScalar(0.75 + (state.rollProgress / 100) * 0.25);
+      panRolled.rotation.x = (state.rollProgress / 100) * Math.PI * 1.4;
     } else if (state.stage === 'ready_to_serve') {
       trayRolled.visible = true;
     }
@@ -321,12 +399,71 @@ export class RolexGameEngine {
     if (state.stage !== 'combining') {
       panChapati.position.y = 0.236;
     }
+
+    // Color & show omelette toppings when omelette is frying or combining
+    const showPanToppings = panOmelette.visible && state.selectedIngredients.length > 0;
+    for (let i = 0; i < panOmeletteToppings.length; i++) {
+      const fleck = panOmeletteToppings[i];
+      fleck.visible = showPanToppings;
+      if (showPanToppings) {
+        const ingId = state.selectedIngredients[i % state.selectedIngredients.length];
+        (fleck.material as THREE.MeshStandardMaterial).color.set(INGREDIENTS[ingId].colorHex);
+      }
+    }
+
+    // Egg mixing cup level
+    const inMixStage = state.stage === 'chapati_ready' || state.stage === 'mixing_eggs';
+    if (inMixStage && state.eggCount > 0) {
+      eggCupLiquid.visible = true;
+      eggCupLiquid.scale.y = 0.8 + state.eggCount * 0.65;
+      eggCupLiquid.position.y = 0.08 + state.eggCount * 0.017;
+    } else {
+      eggCupLiquid.visible = false;
+    }
+
+    // Show chopped bits on board when ingredients selected during prep/fry
+    const showBoardBits =
+      state.selectedIngredients.length > 0 &&
+      (state.stage === 'chapati_ready' ||
+        state.stage === 'mixing_eggs' ||
+        state.stage === 'frying_omelette');
+    for (let b = 0; b < choppedBits.length; b++) {
+      choppedBits[b].visible = showBoardBits || (this.actionKind === 'chop');
+      if (showBoardBits && state.selectedIngredients.length > 0 && this.actionKind !== 'chop') {
+        const ingId = state.selectedIngredients[b % state.selectedIngredients.length];
+        (choppedBits[b].material as THREE.MeshStandardMaterial).color.set(
+          INGREDIENTS[ingId].colorHex,
+        );
+      }
+    }
+    if (!inMixStage && this.actionKind !== 'chop') {
+      chopVeggieMesh.visible = false;
+    }
+
+    // Vendor target X lane behind counter
+    const minLeftX = this.employeeHired ? -0.92 : -1.16;
+    if (state.stage === 'chapati_grilling') {
+      this.vendorTargetX = this.actionKind === 'roll_dough' ? minLeftX : -0.15;
+    } else if (state.stage === 'chapati_ready' || state.stage === 'mixing_eggs') {
+      this.vendorTargetX = 0.48;
+    } else if (
+      state.stage === 'frying_omelette' ||
+      state.stage === 'combining' ||
+      state.stage === 'rolling'
+    ) {
+      this.vendorTargetX = -0.15;
+    } else if (state.stage === 'ready_to_serve') {
+      this.vendorTargetX = 1.22;
+    } else {
+      this.vendorTargetX = -0.15;
+    }
   }
 
   public syncUpgradesVisuals(
     upgrades: Record<string, number>,
     employeeHired: boolean,
   ): void {
+    this.employeeHired = employeeHired;
     if (!this.stallRig) return;
     this.stallRig.jumaGroup.visible = employeeHired;
     this.stallRig.dualBurnerRing.visible = (upgrades['gas_sigiri'] || 0) > 0;
@@ -392,6 +529,16 @@ export class RolexGameEngine {
       const dt = Math.min(rawDt, 0.1);
       const elapsed = this.clock.getElapsedTime();
 
+      // Handle queued follow-up camera goal (e.g., prep dough roll -> tava sizzle)
+      if (this.queuedCameraGoal) {
+        this.queuedCameraGoal.delay -= dt;
+        if (this.queuedCameraGoal.delay <= 0) {
+          const nextFocus = this.queuedCameraGoal.focus;
+          this.queuedCameraGoal = null;
+          this.setCameraFocus(nextFocus);
+        }
+      }
+
       // Smooth damped camera preset transition
       if (this.activeCameraGoal) {
         const dampLambda = 6.5;
@@ -440,12 +587,13 @@ export class RolexGameEngine {
 
       this.controls.update();
 
-      // Animate stall stove embers, steam particles, and Juma NPC
+      // Animate stall stove embers, steam particles, Primary Vendor & Juma NPC
       if (this.stallRig) {
-        const emberMat = this.stallRig.emberGlow.material as THREE.MeshStandardMaterial;
+        const rig = this.stallRig;
+        const emberMat = rig.emberGlow.material as THREE.MeshStandardMaterial;
         const heatBoost = this.cookingState?.panHeat || 0.3;
         emberMat.emissiveIntensity = 1.15 + heatBoost * 0.9 + Math.sin(elapsed * 7) * 0.2;
-        this.stallRig.stoveLight.intensity = 1.1 + heatBoost * 0.7 + Math.sin(elapsed * 9) * 0.12;
+        rig.stoveLight.intensity = 1.1 + heatBoost * 0.7 + Math.sin(elapsed * 9) * 0.12;
 
         // Steam particles
         const isHot =
@@ -453,15 +601,15 @@ export class RolexGameEngine {
           (this.cookingState.stage === 'chapati_grilling' ||
             this.cookingState.stage === 'frying_omelette' ||
             this.cookingState.stage === 'combining');
-        const steamMat = this.stallRig.steamParticles.material as THREE.PointsMaterial;
+        const steamMat = rig.steamParticles.material as THREE.PointsMaterial;
         steamMat.opacity = THREE.MathUtils.damp(steamMat.opacity, isHot ? 0.55 : 0.0, 5, dt);
 
         if (steamMat.opacity > 0.02) {
-          const posAttr = this.stallRig.steamParticles.geometry.getAttribute(
+          const posAttr = rig.steamParticles.geometry.getAttribute(
             'position',
           ) as THREE.BufferAttribute;
-          const arr = this.stallRig.steamPositions;
-          const vels = this.stallRig.steamVelocities;
+          const arr = rig.steamPositions;
+          const vels = rig.steamVelocities;
           for (let i = 0; i < vels.length; i++) {
             arr[i * 3 + 1] += vels[i] * dt;
             arr[i * 3] += Math.sin(elapsed * 3 + i) * 0.06 * dt;
@@ -474,9 +622,184 @@ export class RolexGameEngine {
           posAttr.needsUpdate = true;
         }
 
+        // Primary Vendor & live cooking action choreography
+        const minLeftX = this.employeeHired ? -0.92 : -1.16;
+        let desiredVendorX = this.vendorTargetX;
+        let targetLeftArmX = -0.52 + Math.sin(elapsed * 2.1) * 0.04;
+        let targetRightArmX = -0.55 + Math.cos(elapsed * 2.1) * 0.04;
+        let targetLeftArmZ = 0.02;
+        let targetRightArmZ = -0.02;
+        let targetHeadX = 0.12;
+        let targetHeadY = Math.sin(elapsed * 0.9) * 0.08;
+
+        let showKnife = false;
+        let showPin = false;
+        let showSpatula = false;
+        let showEgg = false;
+
+        if (this.actionKind) {
+          this.actionElapsed += dt;
+          const u = Math.min(1, this.actionElapsed / Math.max(0.01, this.actionDuration));
+
+          if (this.actionKind === 'roll_dough') {
+            desiredVendorX = minLeftX;
+            showPin = true;
+            if (rig.prepPin) rig.prepPin.visible = false;
+            const rollWave = Math.sin(u * Math.PI * 5);
+            targetLeftArmX = -0.95 + rollWave * 0.26;
+            targetRightArmX = -0.95 + rollWave * 0.26;
+            targetHeadX = 0.24;
+            targetHeadY = -0.15;
+            const flat = 0.65 + u * 0.55;
+            rig.prepDoughDisc.scale.set(flat, 1.4 - u * 0.65, flat);
+          } else if (this.actionKind === 'chop') {
+            desiredVendorX = 0.24;
+            showKnife = true;
+            rig.chopVeggieMesh.visible = true;
+            const chopWave = Math.abs(Math.sin(u * Math.PI * 6));
+            targetRightArmX = -0.68 - chopWave * 0.52;
+            targetLeftArmX = -0.82;
+            targetHeadX = 0.26;
+            targetHeadY = 0.04;
+            for (let b = 0; b < rig.choppedBits.length; b++) {
+              rig.choppedBits[b].visible = true;
+              rig.choppedBits[b].position.y = 0.032 + chopWave * 0.024 * ((b % 2) + 0.4);
+            }
+          } else if (this.actionKind === 'crack_egg') {
+            desiredVendorX = 0.72;
+            showEgg = u < 0.42;
+            rig.crackEggGroup.visible = u >= 0.3;
+            const split = Math.max(0, (u - 0.35) / 0.65);
+            rig.crackShellLeft.position.x = -0.016 - split * 0.035;
+            rig.crackShellLeft.rotation.z = Math.PI / 2 + split * 0.45;
+            rig.crackShellRight.position.x = 0.016 + split * 0.035;
+            rig.crackShellRight.rotation.z = -Math.PI / 2 - split * 0.45;
+            rig.crackYolkDrop.position.y = -0.02 - split * 0.14;
+            rig.crackYolkDrop.visible = u >= 0.35 && u < 0.85;
+            rig.eggCupWhisk.rotation.y += dt * 16;
+            targetRightArmX = -0.86 - Math.sin(u * Math.PI) * 0.24;
+            targetLeftArmX = -0.78;
+            targetHeadX = 0.22;
+            targetHeadY = 0.12;
+          } else if (this.actionKind === 'pour_egg') {
+            desiredVendorX = 0.12;
+            targetRightArmX = -1.05 - Math.sin(u * Math.PI) * 0.25;
+            targetRightArmZ = 0.32;
+            targetLeftArmX = -0.7;
+            targetHeadX = 0.22;
+          } else if (this.actionKind === 'flip_tava') {
+            desiredVendorX = -0.15;
+            showSpatula = true;
+            const flick = Math.sin(u * Math.PI);
+            targetRightArmX = -0.85 - flick * 0.45;
+            targetHeadX = 0.22;
+          } else if (this.actionKind === 'roll_rolex') {
+            desiredVendorX = -0.05;
+            const swirl = Math.sin(u * Math.PI * 3);
+            targetLeftArmX = -0.95 + swirl * 0.18;
+            targetRightArmX = -0.95 - swirl * 0.18;
+            targetLeftArmZ = -0.18;
+            targetRightArmZ = 0.18;
+            targetHeadX = 0.25;
+          } else if (this.actionKind === 'serve') {
+            desiredVendorX = 1.24;
+            const reach = Math.sin(u * Math.PI);
+            targetRightArmX = -0.75 - reach * 0.5;
+            targetLeftArmX = -0.6 - reach * 0.3;
+            targetHeadX = 0.04;
+            targetHeadY = 0.12;
+          }
+
+          if (this.actionElapsed >= this.actionDuration) {
+            this.actionKind = null;
+            rig.crackEggGroup.visible = false;
+            rig.chopVeggieMesh.visible = false;
+            if (rig.prepPin) rig.prepPin.visible = true;
+            for (const bit of rig.choppedBits) {
+              bit.position.y = 0.032;
+            }
+          }
+        } else {
+          rig.crackEggGroup.visible = false;
+          if (rig.prepPin) rig.prepPin.visible = true;
+          if (
+            this.cookingState?.stage === 'chapati_grilling' ||
+            this.cookingState?.stage === 'frying_omelette'
+          ) {
+            showSpatula = true;
+            targetRightArmX = -0.82 + Math.sin(elapsed * 4.5) * 0.08;
+            targetHeadX = 0.2;
+          } else if (
+            this.cookingState?.stage === 'chapati_ready' ||
+            this.cookingState?.stage === 'mixing_eggs'
+          ) {
+            rig.eggCupWhisk.rotation.y += dt * 3.5;
+            targetLeftArmX = -0.72;
+            targetRightArmX = -0.76 + Math.sin(elapsed * 5) * 0.07;
+            targetHeadX = 0.18;
+          }
+        }
+
+        rig.vendorGroup.position.x = THREE.MathUtils.damp(
+          rig.vendorGroup.position.x,
+          desiredVendorX,
+          7.5,
+          dt,
+        );
+
+        if (rig.vendorTorso) {
+          rig.vendorTorso.position.y = 1.12 + Math.sin(elapsed * 2.4) * 0.008;
+        }
+        if (rig.vendorHead) {
+          rig.vendorHead.rotation.x = THREE.MathUtils.damp(
+            rig.vendorHead.rotation.x,
+            targetHeadX,
+            8,
+            dt,
+          );
+          rig.vendorHead.rotation.y = THREE.MathUtils.damp(
+            rig.vendorHead.rotation.y,
+            targetHeadY,
+            8,
+            dt,
+          );
+        }
+        if (rig.vendorLeftArm) {
+          rig.vendorLeftArm.rotation.x = THREE.MathUtils.damp(
+            rig.vendorLeftArm.rotation.x,
+            targetLeftArmX,
+            14,
+            dt,
+          );
+          rig.vendorLeftArm.rotation.z = THREE.MathUtils.damp(
+            rig.vendorLeftArm.rotation.z,
+            targetLeftArmZ,
+            12,
+            dt,
+          );
+        }
+        if (rig.vendorRightArm) {
+          rig.vendorRightArm.rotation.x = THREE.MathUtils.damp(
+            rig.vendorRightArm.rotation.x,
+            targetRightArmX,
+            14,
+            dt,
+          );
+          rig.vendorRightArm.rotation.z = THREE.MathUtils.damp(
+            rig.vendorRightArm.rotation.z,
+            targetRightArmZ,
+            12,
+            dt,
+          );
+        }
+        if (rig.vendorKnife) rig.vendorKnife.visible = showKnife;
+        if (rig.vendorRollingPin) rig.vendorRollingPin.visible = showPin;
+        if (rig.vendorSpatula) rig.vendorSpatula.visible = showSpatula;
+        if (rig.vendorEggProp) rig.vendorEggProp.visible = showEgg;
+
         // Juma chopping motion when hired
-        if (this.stallRig.jumaGroup.visible && this.stallRig.jumaRightArm) {
-          this.stallRig.jumaRightArm.rotation.x = -0.85 + Math.sin(elapsed * 8) * 0.22;
+        if (rig.jumaGroup.visible && rig.jumaRightArm) {
+          rig.jumaRightArm.rotation.x = -0.85 + Math.sin(elapsed * 8) * 0.22;
         }
       }
 

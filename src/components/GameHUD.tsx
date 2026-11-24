@@ -12,6 +12,7 @@ import {
   Flame,
   CheckCircle2,
   AlertTriangle,
+  Video,
 } from 'lucide-react';
 import {
   CameraPreset,
@@ -35,6 +36,7 @@ interface GameHUDProps {
   selectedOrderId: string | null;
   cooking: CookingState;
   cameraPreset: CameraPreset;
+  autoCamera: boolean;
   dockCollapsed: boolean;
   onSelectOrder: (id: string) => void;
   onServeOrder: (id: string) => void;
@@ -44,6 +46,7 @@ interface GameHUDProps {
   onOpenShop: () => void;
   onToggleMute: () => void;
   onChangeCamera: (preset: CameraPreset) => void;
+  onToggleAutoCamera: () => void;
   onToggleDock: () => void;
   onStartChapati: () => void;
   onPullChapati: () => void;
@@ -74,6 +77,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   selectedOrderId,
   cooking,
   cameraPreset,
+  autoCamera,
   dockCollapsed,
   onSelectOrder,
   onServeOrder,
@@ -83,6 +87,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onOpenShop,
   onToggleMute,
   onChangeCamera,
+  onToggleAutoCamera,
   onToggleDock,
   onStartChapati,
   onPullChapati,
@@ -324,14 +329,27 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={onToggleAutoCamera}
+                  title="Automatically follow cooking steps with action close-ups"
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap inline-flex items-center gap-1 transition-colors cursor-pointer ${
+                    autoCamera
+                      ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300'
+                      : 'bg-white/6 border border-transparent text-[#9c9286] hover:bg-white/12'
+                  }`}
+                >
+                  <Video className="w-3 h-3" />
+                  <span>Auto</span>
+                </button>
                 {CAMERA_OPTIONS.map((cam) => (
                   <button
                     key={cam.id}
                     type="button"
                     onClick={() => onChangeCamera(cam.id)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                      cameraPreset === cam.id
+                      !autoCamera && cameraPreset === cam.id
                         ? 'bg-[#f59e0b] text-[#14110f]'
                         : 'bg-white/6 text-[#c7bdb1] hover:bg-white/12'
                     }`}

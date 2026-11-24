@@ -10,8 +10,9 @@ import {
   UpgradeDef,
 } from '../types/game';
 import { computeLevelFromXp, getTierForLevel } from '../data/upgrades';
+import { INGREDIENTS } from '../data/recipes';
 import { createCustomerOrder } from '../engine/CustomerSystem';
-import { RolexGameEngine } from '../engine/RolexGameEngine';
+import { CameraFocusTarget, RolexGameEngine } from '../engine/RolexGameEngine';
 import { AudioSystem } from '../engine/AudioSystem';
 import {
   hydrateSaveDataAsync,
@@ -62,6 +63,7 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
   const [cooking, setCooking] = useState<CookingState>(INITIAL_COOKING);
 
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>('overview');
+  const [autoCamera, setAutoCamera] = useState(true);
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [shiftSummary, setShiftSummary] = useState<ShiftStats | null>(null);
@@ -79,6 +81,8 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
   shiftActiveRef.current = shiftActive;
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
+  const autoCameraRef = useRef(autoCamera);
+  autoCameraRef.current = autoCamera;
   const shiftRemainingRef = useRef(SHIFT_DURATION_SEC);
   const cookingRef = useRef(cooking);
   cookingRef.current = cooking;
@@ -265,6 +269,12 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
       };
       cookingRef.current = nextCook;
       setCooking(nextCook);
+
+      engineRef.current?.triggerCookingAction('serve');
+      if (autoCameraRef.current) {
+        engineRef.current?.setCameraFocus('counter');
+        engineRef.current?.scheduleCameraFocus('overview', 1.15);
+      }
     },
     [scheduleOrderRemoval],
   );
@@ -275,6 +285,11 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     if (cookingRef.current.stage !== 'idle') return;
     const jumaStart = saveRef.current.employeeHired ? 22 : 0;
     audioRef.current?.startSizzle(0.5);
+    engineRef.current?.triggerCookingAction('roll_dough');
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('prep');
+      engineRef.current?.scheduleCameraFocus('tava', 1.05);
+    }
     setCooking((prev) => ({
       ...prev,
       stage: 'chapati_grilling',
@@ -286,7 +301,7 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
       omeletteQuality: null,
       rollProgress: 0,
       panHeat: 0.75,
-      lastFeedback: 'Chapati sizzling on the cast-iron tava...',
+      lastFeedback: 'Rolling fresh dough & grilling chapati on the tava...',
     }));
   }, []);
 
@@ -299,19 +314,24 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     const maxPerfect = 86 + tavaBonus;
 
     let quality: CookQuality = 'good';
-    let msg = 'Chapati lifted! Crack eggs and add fillings.';
+    let msg = 'Chapati lifted! Crack eggs and chop fresh fillings.';
     if (c.chapatiProgress >= minPerfect && c.chapatiProgress <= maxPerfect) {
       quality = 'perfect';
-      msg = 'Golden blistered chapati! Now crack eggs & pick fillings.';
+      msg = 'Golden blistered chapati! Now crack eggs & chop fillings.';
     } else if (c.chapatiProgress < 42 || c.chapatiProgress > 93) {
       quality = 'poor';
       msg =
         c.chapatiProgress < 42
-          ? 'Chapati undercooked! Crack eggs & add fillings.'
-          : 'Chapati slightly charred! Crack eggs & add fillings.';
+          ? 'Chapati undercooked! Crack eggs & chop fillings.'
+          : 'Chapati slightly charred! Crack eggs & chop fillings.';
     }
 
     audioRef.current?.stopSizzle();
+    engineRef.current?.clearScheduledCamera();
+    engineRef.current?.triggerCookingAction('flip_tava');
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('mix');
+    }
     setCooking((prev) => ({
       ...prev,
       stage: 'chapati_ready',
@@ -327,13 +347,17 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     if (c.stage !== 'chapati_ready' && c.stage !== 'mixing_eggs') return;
     if (c.eggCount >= 3) return;
     audioRef.current?.playEggCrack();
+    engineRef.current?.triggerCookingAction('crack_egg');
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('mix');
+    }
     setCooking((prev) => ({
       ...prev,
       stage: 'mixing_eggs',
       eggCount: prev.eggCount + 1,
       lastFeedback: `Cracked ${prev.eggCount + 1} ${
         prev.eggCount + 1 === 1 ? 'egg' : 'eggs'
-      }. Add veggies and pour onto tava!`,
+      } into the cup. Chop veggies and pour onto tava!`,
     }));
   }, []);
 
@@ -342,6 +366,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     const c = cookingRef.current;
     if (c.stage !== 'chapati_ready' && c.stage !== 'mixing_eggs') return;
     audioRef.current?.playChop();
+    engineRef.current?.triggerCookingAction('chop', INGREDIENTS[id].colorHex);
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('mix');
+    }
     setCooking((prev) => {
       const exists = prev.selectedIngredients.includes(id);
       const next = exists
@@ -360,6 +388,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     const c = cookingRef.current;
     if (c.stage !== 'mixing_eggs' || c.eggCount === 0) return;
     audioRef.current?.startSizzle(0.85);
+    engineRef.current?.triggerCookingAction('pour_egg');
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('tava');
+    }
     setCooking((prev) => ({
       ...prev,
       stage: 'frying_omelette',
@@ -394,6 +426,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
 
     audioRef.current?.stopSizzle();
     audioRef.current?.playRoll();
+    engineRef.current?.triggerCookingAction('roll_rolex');
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('roll');
+    }
 
     setCooking((prev) => ({
       ...prev,
@@ -411,8 +447,12 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
     const c = cookingRef.current;
     if (c.stage !== 'rolling' && c.stage !== 'combining') return;
     audioRef.current?.playRoll();
+    engineRef.current?.triggerCookingAction('roll_rolex');
     const nextRoll = Math.min(100, c.rollProgress + 38);
     if (nextRoll >= 100) {
+      if (autoCameraRef.current) {
+        engineRef.current?.setCameraFocus('counter');
+      }
       setCooking((prev) => ({
         ...prev,
         stage: 'ready_to_serve',
@@ -421,6 +461,9 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         lastFeedback: 'Hot Rolex wrapped in kraft paper! Tap a customer to serve.',
       }));
     } else {
+      if (autoCameraRef.current) {
+        engineRef.current?.setCameraFocus('roll');
+      }
       setCooking((prev) => ({
         ...prev,
         rollProgress: nextRoll,
@@ -430,6 +473,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
 
   const handleDiscardPan = useCallback(() => {
     audioRef.current?.stopSizzle();
+    engineRef.current?.clearScheduledCamera();
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('overview');
+    }
     setCooking({
       ...INITIAL_COOKING,
       lastFeedback: 'Tava cleared. Ready to grill a fresh chapati!',
@@ -474,6 +521,7 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
             serveCustomer(customerId);
           }
         },
+        onUserCameraInteract: () => setAutoCamera(false),
         onWebglError: (msg) => setWebglError(msg),
       });
 
@@ -570,6 +618,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
 
     spawnTimerRef.current = 0;
     setShiftActive(true);
+    engineRef.current?.clearScheduledCamera();
+    if (autoCameraRef.current) {
+      engineRef.current?.setCameraFocus('overview');
+    }
   }, [clearDepartureTimers]);
 
   // Keyboard shortcuts
@@ -629,6 +681,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         setIsPaused(false);
         clearDepartureTimers();
         audioRef.current?.stopSizzle();
+        engineRef.current?.clearScheduledCamera();
+        if (autoCameraRef.current) {
+          engineRef.current?.setCameraFocus('overview');
+        }
 
         const c = shiftCountersRef.current;
         const netProfit = Math.max(0, c.sales + c.tips - c.expenses);
@@ -685,6 +741,10 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         const nextProg = curCook.chapatiProgress + dt * 27 * speedMult;
         if (nextProg >= 100) {
           audioRef.current?.stopSizzle();
+          engineRef.current?.clearScheduledCamera();
+          if (autoCameraRef.current) {
+            engineRef.current?.setCameraFocus('mix');
+          }
           const burned: CookingState = {
             ...curCook,
             stage: 'chapati_ready',
@@ -704,6 +764,9 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         const nextProg = curCook.omeletteProgress + dt * 25 * speedMult;
         if (nextProg >= 100) {
           audioRef.current?.stopSizzle();
+          if (autoCameraRef.current) {
+            engineRef.current?.setCameraFocus('roll');
+          }
           const overcooked: CookingState = {
             ...curCook,
             stage: 'rolling',
@@ -836,8 +899,28 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
   }, []);
 
   const handleChangeCamera = useCallback((preset: CameraPreset) => {
+    setAutoCamera(false);
     setCameraPreset(preset);
     engineRef.current?.setCameraPreset(preset);
+  }, []);
+
+  const handleToggleAutoCamera = useCallback(() => {
+    setAutoCamera((prev) => {
+      const next = !prev;
+      if (next) {
+        const st = cookingRef.current.stage;
+        let focus: CameraFocusTarget = 'overview';
+        if (st === 'chapati_grilling') focus = 'tava';
+        else if (st === 'chapati_ready' || st === 'mixing_eggs') focus = 'mix';
+        else if (st === 'frying_omelette') focus = 'tava';
+        else if (st === 'combining' || st === 'rolling') focus = 'roll';
+        else if (st === 'ready_to_serve') focus = 'counter';
+        engineRef.current?.setCameraFocus(focus);
+      } else {
+        engineRef.current?.clearScheduledCamera();
+      }
+      return next;
+    });
   }, []);
 
   const handleResetSave = useCallback(() => {
@@ -888,6 +971,7 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         selectedOrderId={selectedOrderId}
         cooking={cooking}
         cameraPreset={cameraPreset}
+        autoCamera={autoCamera}
         dockCollapsed={dockCollapsed}
         onSelectOrder={setSelectedOrderId}
         onServeOrder={serveCustomer}
@@ -897,6 +981,7 @@ export const GameView: React.FC<GameViewProps> = ({ onNavigate }) => {
         onOpenShop={() => setShopOpen(true)}
         onToggleMute={handleToggleMute}
         onChangeCamera={handleChangeCamera}
+        onToggleAutoCamera={handleToggleAutoCamera}
         onToggleDock={() => setDockCollapsed((d) => !d)}
         onStartChapati={handleStartChapati}
         onPullChapati={handlePullChapati}
