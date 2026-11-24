@@ -52,13 +52,13 @@ git init
 git add .
 git commit -m "Release Rolex Empire v1.0"
 git branch -M main
-git remote add origin https://github.com/eoxystudio/rolex-empire.git
+git remote add origin https://github.com/emkay0070/ROLEX-EMPIRE-.git
 git push -u origin main
 ```
 
 ## Deploying to Vercel
 
-1. Import the `rolex-empire` GitHub repository in the Vercel dashboard.
+1. Import the `emkay0070/ROLEX-EMPIRE-` GitHub repository in the Vercel dashboard.
 2. Vercel detects `vite` automatically via `vercel.json` (`npm run build`, output directory `dist`).
 3. Optional: add `VITE_ADSENSE_CLIENT` and slot variables in Project Settings &rarr; Environment Variables after AdSense approval.
 4. Click **Deploy**. All routes (`/`, `/play`, `/how-to-play`, `/about`, `/privacy-policy`, `/contact`) are rewritten cleanly to `/index.html`.
