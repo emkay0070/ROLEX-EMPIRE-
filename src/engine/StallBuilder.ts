@@ -101,185 +101,12 @@ function createRolledRolexMesh(chapatiTex: THREE.Texture): THREE.Group {
   return g;
 }
 
-function buildKampalaEnvironment(
-  root: THREE.Group,
-  textures: ProceduralTextureSet,
-): void {
-  // Ground: Kampala red laterite murram extending wide into horizon fog
-  const soilGround = new THREE.Mesh(
-    new THREE.PlaneGeometry(140, 140),
-    new THREE.MeshStandardMaterial({
-      map: textures.lateriteSoil,
-      roughness: 0.95,
-      metalness: 0.0,
-    }),
-  );
-  soilGround.rotation.x = -Math.PI / 2;
-  soilGround.position.y = 0;
-  soilGround.receiveShadow = true;
-  root.add(soilGround);
-
-  // Tarmac street in front of stall
-  const tarmac = new THREE.Mesh(
-    new THREE.PlaneGeometry(100, 5.2),
-    new THREE.MeshStandardMaterial({
-      map: textures.kampalaTarmac,
-      roughness: 0.88,
-      metalness: 0.04,
-    }),
-  );
-  tarmac.rotation.x = -Math.PI / 2;
-  tarmac.position.set(0, 0.02, 5.2);
-  tarmac.receiveShadow = true;
-  root.add(tarmac);
-
-  // Concrete roadside curb
-  const curb = new THREE.Mesh(
-    new THREE.BoxGeometry(60, 0.12, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x9ca3af, roughness: 0.9 }),
-  );
-  curb.position.set(0, 0.06, 2.55);
-  curb.receiveShadow = true;
-  root.add(curb);
-
-  // Kampala roadside shopfronts in background (Buildings category)
-  const buildingConfigs = [
-    { x: -8.5, z: -6.5, w: 6.2, h: 3.8, d: 4.5, color: 0xd9a066, trim: 0x1e40af },
-    { x: 0.5, z: -7.8, w: 7.4, h: 4.2, d: 4.5, color: 0xe5d3b3, trim: 0x15803d },
-    { x: 9.2, z: -6.2, w: 5.8, h: 3.6, d: 4.5, color: 0xcbd5e1, trim: 0xb91c1c },
-  ];
-
-  for (const b of buildingConfigs) {
-    const bGroup = new THREE.Group();
-    bGroup.position.set(b.x, 0, b.z);
-
-    const walls = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w, b.h, b.d),
-      new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.88 }),
-    );
-    walls.position.y = b.h / 2;
-    walls.castShadow = true;
-    walls.receiveShadow = true;
-    bGroup.add(walls);
-
-    const roof = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w + 0.6, 0.14, b.d + 0.9),
-      new THREE.MeshStandardMaterial({
-        map: textures.mabatiRoof,
-        roughness: 0.55,
-        metalness: 0.45,
-      }),
-    );
-    roof.position.set(0, b.h + 0.07, 0.25);
-    roof.rotation.x = 0.08;
-    bGroup.add(roof);
-
-    const fascia = new THREE.Mesh(
-      new THREE.BoxGeometry(b.w + 0.1, 0.45, 0.12),
-      new THREE.MeshStandardMaterial({ color: b.trim, roughness: 0.7 }),
-    );
-    fascia.position.set(0, b.h - 0.55, b.d / 2 + 0.05);
-    bGroup.add(fascia);
-
-    // Shop shutter door
-    const shutter = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 2.2, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.5, metalness: 0.5 }),
-    );
-    shutter.position.set(0, 1.1, b.d / 2 + 0.03);
-    bGroup.add(shutter);
-
-    root.add(bGroup);
-  }
-
-  // Ugandan Roadside Acacia / Shade Trees (Instanced foliage puffs + trunks)
-  const treePositions = [
-    [-6.2, -2.5],
-    [6.6, -2.2],
-    [-12.5, 1.2],
-    [12.2, 1.6],
-  ];
-  for (const [tx, tz] of treePositions) {
-    const tree = new THREE.Group();
-    tree.position.set(tx, 0, tz);
-
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.24, 2.4, 8),
-      new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.94 }),
-    );
-    trunk.position.y = 1.2;
-    trunk.castShadow = true;
-    tree.add(trunk);
-
-    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.88 });
-    const canopyOffsets = [
-      [0, 2.75, 0, 1.45, 0.52],
-      [-0.7, 2.5, 0.3, 0.95, 0.44],
-      [0.75, 2.55, -0.2, 1.0, 0.46],
-    ];
-    for (const [cx, cy, cz, rx, ry] of canopyOffsets) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(rx, 10, 8), canopyMat);
-      puff.scale.y = ry;
-      puff.position.set(cx, cy, cz);
-      puff.castShadow = true;
-      tree.add(puff);
-    }
-    root.add(tree);
-  }
-
-  // Parked Ugandan Boda-Boda Motorbike near roadside (composite 8-part model)
-  const boda = new THREE.Group();
-  boda.position.set(3.85, 0, 2.95);
-  boda.rotation.y = -0.45;
-
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x171717, roughness: 0.85 });
-  const rimMat = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.85, roughness: 0.3 });
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.35, metalness: 0.3 });
-
-  for (const wx of [-0.55, 0.55]) {
-    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.075, 10, 18), tireMat);
-    tire.position.set(wx, 0.34, 0);
-    tire.castShadow = true;
-    boda.add(tire);
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.08, 12), rimMat);
-    hub.rotation.x = Math.PI / 2;
-    hub.position.set(wx, 0.34, 0);
-    boda.add(hub);
-  }
-
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.24, 0.24), bodyMat);
-  chassis.position.set(0, 0.62, 0);
-  chassis.castShadow = true;
-  boda.add(chassis);
-
-  const seat = new THREE.Mesh(
-    new THREE.BoxGeometry(0.62, 0.12, 0.28),
-    new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.8 }),
-  );
-  seat.position.set(-0.14, 0.78, 0);
-  boda.add(seat);
-
-  const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.65, 8), rimMat);
-  fork.position.set(0.46, 0.62, 0);
-  fork.rotation.z = 0.28;
-  boda.add(fork);
-
-  const handlebar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 8), rimMat);
-  handlebar.rotation.x = Math.PI / 2;
-  handlebar.position.set(0.38, 0.94, 0);
-  boda.add(handlebar);
-
-  root.add(boda);
-}
-
 export async function buildKampalaRolexStall(
   assetManager: AssetManager,
   textures: ProceduralTextureSet,
 ): Promise<StallRig> {
   const root = new THREE.Group();
   const interactiveMeshes: THREE.Object3D[] = [];
-
-  buildKampalaEnvironment(root, textures);
 
   const stallGroup = new THREE.Group();
   stallGroup.position.set(0, 0, 0);
@@ -426,14 +253,59 @@ export async function buildKampalaRolexStall(
   backWall.receiveShadow = true;
   stallGroup.add(backWall);
 
-  // Iconic Yellow Ugandan Oil Jerrycan beside stall
-  const jerrycan = new THREE.Mesh(
-    new THREE.BoxGeometry(0.28, 0.44, 0.22),
-    new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.48 }),
-  );
-  jerrycan.position.set(-2.15, 0.24, 0.15);
-  jerrycan.castShadow = true;
-  stallGroup.add(jerrycan);
+  // Iconic 20L Yellow Ugandan Oil Jerrycan + Stacked Plastic Soda Crates beside stall
+  const jerrycanGroup = await assetManager.loadOrBuild('env_oil_jerrycan', () => {
+    const jg = new THREE.Group();
+    const jugMat = new THREE.MeshStandardMaterial({ color: 0xeab308, roughness: 0.45 });
+    const jug = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.42, 0.22), jugMat);
+    jug.position.y = 0.21;
+    jug.castShadow = true;
+    jg.add(jug);
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.032, 0.035, 0.045, 10),
+      new THREE.MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.4 }),
+    );
+    cap.position.set(0.06, 0.44, 0);
+    jg.add(cap);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.05), jugMat);
+    handle.position.set(-0.06, 0.43, 0);
+    jg.add(handle);
+    return jg;
+  });
+  jerrycanGroup.position.set(-2.15, 0.02, 0.15);
+  stallGroup.add(jerrycanGroup);
+
+  const sodaCrates = await assetManager.loadOrBuild('env_soda_crates', () => {
+    const cg = new THREE.Group();
+    const crateColors = [0xb91c1c, 0x1d4ed8];
+    for (let i = 0; i < 2; i++) {
+      const crate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.28, 0.34),
+        new THREE.MeshStandardMaterial({ color: crateColors[i], roughness: 0.55 }),
+      );
+      crate.position.y = 0.14 + i * 0.285;
+      crate.rotation.y = i * 0.12;
+      crate.castShadow = true;
+      cg.add(crate);
+    }
+    return cg;
+  });
+  sodaCrates.position.set(2.12, 0.02, -0.58);
+  stallGroup.add(sodaCrates);
+
+  const charcoalSack = await assetManager.loadOrBuild('env_charcoal_sack', () => {
+    const sg = new THREE.Group();
+    const sack = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2, 0.24, 0.54, 10),
+      new THREE.MeshStandardMaterial({ color: 0x785c3e, roughness: 0.94 }),
+    );
+    sack.position.y = 0.27;
+    sack.castShadow = true;
+    sg.add(sack);
+    return sg;
+  });
+  charcoalSack.position.set(-1.62, 0.06, -0.78);
+  stallGroup.add(charcoalSack);
 
   // Menu Board Easel on right front side of stall
   const menuGroup = new THREE.Group();
@@ -664,9 +536,11 @@ export async function buildKampalaRolexStall(
   steamGeo.setAttribute('position', new THREE.BufferAttribute(steamPositions, 3));
   const steamMat = new THREE.PointsMaterial({
     color: 0xfff8eb,
-    size: 0.08,
+    map: textures.smokeSprite,
+    size: 0.16,
     transparent: true,
     opacity: 0.0,
+    alphaTest: 0.01,
     depthWrite: false,
   });
   const steamParticles = new THREE.Points(steamGeo, steamMat);
@@ -824,6 +698,18 @@ export async function buildKampalaRolexStall(
   awning.rotation.x = 0.22;
   awning.castShadow = true;
   canopyExtension.add(awning);
+
+  // Plastic roadside stools beside bench
+  const stoolMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.42 });
+  for (const sx of [2.15, 2.65]) {
+    const stoolTop = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.16, 0.05, 12), stoolMat);
+    stoolTop.position.set(sx, 0.44, 1.55);
+    stoolTop.castShadow = true;
+    canopyExtension.add(stoolTop);
+    const stoolLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.16, 0.42, 10), stoolMat);
+    stoolLeg.position.set(sx, 0.21, 1.55);
+    canopyExtension.add(stoolLeg);
+  }
   stallGroup.add(canopyExtension);
 
   return {

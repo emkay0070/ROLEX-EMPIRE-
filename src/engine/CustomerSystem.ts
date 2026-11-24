@@ -314,6 +314,9 @@ export function createCustomerOrder(
   };
 }
 
+const _scratchDir = new THREE.Vector3();
+const _scratchExit = new THREE.Vector3();
+
 export function updateCustomerVisuals(
   visuals: CustomerVisual[],
   dt: number,
@@ -325,11 +328,11 @@ export function updateCustomerVisuals(
     if (order.status === 'walking_in') {
       const dist = group.position.distanceTo(targetPos);
       if (dist > 0.08) {
-        const dir = targetPos.clone().sub(group.position).normalize();
+        _scratchDir.copy(targetPos).sub(group.position).normalize();
         const speed = 2.4;
-        group.position.addScaledVector(dir, Math.min(dist, speed * dt));
+        group.position.addScaledVector(_scratchDir, Math.min(dist, speed * dt));
         // Forward face is -Z, so yaw to face dir is atan2(-dir.x, -dir.z)
-        const targetYaw = Math.atan2(-dir.x, -dir.z);
+        const targetYaw = Math.atan2(-_scratchDir.x, -_scratchDir.z);
         group.rotation.y = dampAngle(group.rotation.y, targetYaw, 8, dt);
 
         cv.walkPhase += dt * 10;
@@ -358,10 +361,10 @@ export function updateCustomerVisuals(
         headGroup.rotation.y = Math.sin(elapsed * 1.3 + cv.walkPhase) * 0.1;
       }
     } else if (order.status === 'leaving_happy' || order.status === 'leaving_angry') {
-      const exitTarget = new THREE.Vector3(order.slotIndex % 2 === 0 ? -7.5 : 7.5, 0, 2.5);
-      const dir = exitTarget.clone().sub(group.position).normalize();
-      group.position.addScaledVector(dir, 2.8 * dt);
-      const targetYaw = Math.atan2(-dir.x, -dir.z);
+      _scratchExit.set(order.slotIndex % 2 === 0 ? -7.5 : 7.5, 0, 2.25);
+      _scratchDir.copy(_scratchExit).sub(group.position).normalize();
+      group.position.addScaledVector(_scratchDir, 2.8 * dt);
+      const targetYaw = Math.atan2(-_scratchDir.x, -_scratchDir.z);
       group.rotation.y = dampAngle(group.rotation.y, targetYaw, 8, dt);
 
       cv.walkPhase += dt * 11;

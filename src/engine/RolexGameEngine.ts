@@ -5,6 +5,8 @@ import { CameraPreset, CookingState, CustomerOrder } from '../types/game';
 import { AssetManager } from './AssetManager';
 import { createProceduralTextures, ProceduralTextureSet } from './ProceduralTextures';
 import { buildKampalaRolexStall, StallRig } from './StallBuilder';
+import { buildKirekaDistrict, DistrictHandle } from './DistrictManager';
+import { TrafficSystem } from './TrafficSystem';
 import {
   buildUgandanCustomerMesh,
   CustomerVisual,
@@ -20,8 +22,8 @@ export interface EngineCallbacks {
 
 const CAMERA_PRESETS: Record<CameraPreset, { pos: THREE.Vector3; target: THREE.Vector3 }> = {
   overview: {
-    pos: new THREE.Vector3(0.4, 3.05, 5.15),
-    target: new THREE.Vector3(0, 1.05, 0.2),
+    pos: new THREE.Vector3(0.42, 3.32, 6.45),
+    target: new THREE.Vector3(0, 1.05, 0.35),
   },
   tava: {
     pos: new THREE.Vector3(-0.15, 2.05, 1.42),
@@ -67,6 +69,8 @@ export class RolexGameEngine {
 
   private textures: ProceduralTextureSet | null = null;
   private stallRig: StallRig | null = null;
+  private district: DistrictHandle | null = null;
+  private trafficSystem: TrafficSystem | null = null;
   private customerVisuals: CustomerVisual[] = [];
 
   private activeCameraGoal: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
@@ -103,11 +107,11 @@ export class RolexGameEngine {
     container.appendChild(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
-    const skyColor = new THREE.Color(0xdbeafe);
+    const skyColor = new THREE.Color(0xdce8f5);
     this.scene.background = skyColor;
-    this.scene.fog = new THREE.FogExp2(0xdbeafe, 0.022);
+    this.scene.fog = new THREE.FogExp2(0xdce8f5, 0.012);
 
-    this.camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 120);
+    this.camera = new THREE.PerspectiveCamera(46, width / height, 0.1, 180);
     this.camera.position.copy(CAMERA_PRESETS.overview.pos);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -119,7 +123,7 @@ export class RolexGameEngine {
     this.controls.minAzimuthAngle = -Math.PI * 0.45;
     this.controls.maxAzimuthAngle = Math.PI * 0.45;
     this.controls.minDistance = 1.5;
-    this.controls.maxDistance = 10.5;
+    this.controls.maxDistance = 13.5;
     this.controls.enablePan = false;
     this.controls.update();
 
@@ -143,17 +147,17 @@ export class RolexGameEngine {
     pmremGenerator.dispose();
 
     // Kampala warm afternoon sun key light + cool sky/laterite ground hemisphere fill
-    const hemi = new THREE.HemisphereLight(0xbae6fd, 0x8b4a2b, 0.82);
+    const hemi = new THREE.HemisphereLight(0xbae6fd, 0x8b4a2b, 0.85);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xfff1d6, 2.15);
-    sun.position.set(6.5, 11, 7.5);
+    const sun = new THREE.DirectionalLight(0xfff0d4, 2.2);
+    sun.position.set(7.5, 12.5, 8.5);
     sun.castShadow = !this.isSoftwareGl;
     sun.shadow.mapSize.width = 1024;
     sun.shadow.mapSize.height = 1024;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 32;
-    const d = 8.5;
+    sun.shadow.camera.far = 36;
+    const d = 10.5;
     sun.shadow.camera.left = -d;
     sun.shadow.camera.right = d;
     sun.shadow.camera.top = d;
@@ -162,9 +166,9 @@ export class RolexGameEngine {
     sun.shadow.normalBias = 0.02;
     this.scene.add(sun);
 
-    // Subtle cool rim light separating stall silhouette from background shopfronts
-    const rim = new THREE.DirectionalLight(0x93c5fd, 0.45);
-    rim.position.set(-5, 4, -6);
+    // Subtle cool rim light separating stall silhouette from Kireka shopfronts
+    const rim = new THREE.DirectionalLight(0x93c5fd, 0.48);
+    rim.position.set(-6, 5, -7);
     this.scene.add(rim);
   }
 
@@ -172,6 +176,12 @@ export class RolexGameEngine {
     const maxAniso = this.renderer.capabilities.getMaxAnisotropy();
     this.textures = createProceduralTextures(maxAniso);
     Object.values(this.textures).forEach((t) => this.assetManager.trackTexture(t));
+
+    this.district = await buildKirekaDistrict(this.assetManager, this.textures);
+    this.scene.add(this.district.root);
+
+    this.trafficSystem = new TrafficSystem(this.district.materials);
+    this.scene.add(this.trafficSystem.root);
 
     this.stallRig = await buildKampalaRolexStall(this.assetManager, this.textures);
     this.scene.add(this.stallRig.root);
@@ -466,6 +476,9 @@ export class RolexGameEngine {
         }
       }
 
+      // Animate Kireka street traffic & market pedestrians
+      this.trafficSystem?.update(dt, elapsed);
+
       // Animate customers
       updateCustomerVisuals(this.customerVisuals, dt, elapsed);
 
@@ -513,6 +526,11 @@ export class RolexGameEngine {
         }
       }
     });
+
+    this.trafficSystem?.dispose();
+    this.trafficSystem = null;
+    this.district?.dispose();
+    this.district = null;
 
     this.assetManager.dispose();
     this.controls.dispose();

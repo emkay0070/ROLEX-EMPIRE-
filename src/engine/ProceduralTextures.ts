@@ -3,6 +3,8 @@ import * as THREE from 'three';
 export interface ProceduralTextureSet {
   lateriteSoil: THREE.CanvasTexture;
   kampalaTarmac: THREE.CanvasTexture;
+  jinjaHighwayTarmac: THREE.CanvasTexture;
+  paverTiles: THREE.CanvasTexture;
   mabatiRoof: THREE.CanvasTexture;
   woodCounter: THREE.CanvasTexture;
   castIronTava: THREE.CanvasTexture;
@@ -12,6 +14,12 @@ export interface ProceduralTextureSet {
   omeletteSurface: THREE.CanvasTexture;
   contactShadow: THREE.CanvasTexture;
   ugandaSignBanner: THREE.CanvasTexture;
+  signHardware: THREE.CanvasTexture;
+  signWholesaleDuka: THREE.CanvasTexture;
+  signElectronicsSalon: THREE.CanvasTexture;
+  signMobileMoney: THREE.CanvasTexture;
+  signKirekaMarket: THREE.CanvasTexture;
+  smokeSprite: THREE.CanvasTexture;
 }
 
 function makeCanvas(width: number, height: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -41,12 +49,46 @@ function finalizeTexture(
   return tex;
 }
 
+function makeSignTexture(
+  maxAnisotropy: number,
+  bgHex: string,
+  stripeHex: string,
+  accentHex: string,
+  title: string,
+  subtitle: string,
+  titleColor = '#ffffff',
+): THREE.CanvasTexture {
+  const [c, ctx] = makeCanvas(512, 160);
+  ctx.fillStyle = bgHex;
+  ctx.fillRect(0, 0, 512, 160);
+
+  ctx.fillStyle = stripeHex;
+  ctx.fillRect(0, 0, 512, 20);
+  ctx.fillStyle = accentHex;
+  ctx.fillRect(0, 138, 512, 22);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(8, 24, 496, 110);
+
+  ctx.fillStyle = titleColor;
+  ctx.font = '800 34px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(title, 256, 78);
+
+  ctx.fillStyle = accentHex;
+  ctx.font = '700 18px sans-serif';
+  ctx.fillText(subtitle, 256, 114);
+
+  return finalizeTexture(c, maxAnisotropy, 1, 1);
+}
+
 export function createProceduralTextures(maxAnisotropy: number): ProceduralTextureSet {
   // 1. Kampala red-brown laterite soil (murram)
   const [soilC, soilCtx] = makeCanvas(512, 512);
   soilCtx.fillStyle = '#8b4a2b';
   soilCtx.fillRect(0, 0, 512, 512);
-  for (let i = 0; i < 6000; i++) {
+  for (let i = 0; i < 6500; i++) {
     const x = Math.random() * 512;
     const y = Math.random() * 512;
     const r = 1 + Math.random() * 4;
@@ -56,9 +98,9 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
     soilCtx.arc(x, y, r, 0, Math.PI * 2);
     soilCtx.fill();
   }
-  const lateriteSoil = finalizeTexture(soilC, maxAnisotropy, 8, 8);
+  const lateriteSoil = finalizeTexture(soilC, maxAnisotropy, 10, 10);
 
-  // 2. Kampala weathered tarmac road
+  // 2. Kampala weathered tarmac road (single strip fallback)
   const [roadC, roadCtx] = makeCanvas(512, 512);
   roadCtx.fillStyle = '#383a3d';
   roadCtx.fillRect(0, 0, 512, 512);
@@ -67,7 +109,6 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
     roadCtx.fillStyle = `rgb(${v},${v},${v + 2})`;
     roadCtx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
   }
-  // Subtle dusty edge & dashed road line
   roadCtx.fillStyle = 'rgba(145, 86, 52, 0.24)';
   roadCtx.fillRect(0, 0, 512, 28);
   roadCtx.fillRect(0, 484, 512, 28);
@@ -75,6 +116,83 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   roadCtx.fillRect(40, 248, 170, 16);
   roadCtx.fillRect(295, 248, 170, 16);
   const kampalaTarmac = finalizeTexture(roadC, maxAnisotropy, 4, 1);
+
+  // 2b. Kampala-Jinja Highway weathered 2-lane tarmac with tire wear, patches & faded markings
+  const [hwC, hwCtx] = makeCanvas(1024, 512);
+  hwCtx.fillStyle = '#313438';
+  hwCtx.fillRect(0, 0, 1024, 512);
+
+  // Darker worn wheel tracks in both carriageways
+  hwCtx.fillStyle = 'rgba(22, 24, 27, 0.38)';
+  hwCtx.fillRect(0, 82, 1024, 48);
+  hwCtx.fillRect(0, 158, 1024, 48);
+  hwCtx.fillRect(0, 306, 1024, 48);
+  hwCtx.fillRect(0, 382, 1024, 48);
+
+  // Aggregate speckle
+  for (let i = 0; i < 12000; i++) {
+    const v = 36 + Math.floor(Math.random() * 38);
+    hwCtx.fillStyle = `rgb(${v},${v},${v + 2})`;
+    hwCtx.fillRect(Math.random() * 1024, Math.random() * 512, 2, 2);
+  }
+
+  // Realistic bitumen patch repairs
+  const patches = [
+    [120, 96, 84, 40],
+    [470, 340, 110, 48],
+    [760, 140, 92, 36],
+    [290, 405, 68, 32],
+  ];
+  for (const [px, py, pw, ph] of patches) {
+    hwCtx.fillStyle = 'rgba(20, 22, 25, 0.55)';
+    hwCtx.fillRect(px, py, pw, ph);
+  }
+
+  // Red murram shoulder dust blown onto road margins
+  const edgeTop = hwCtx.createLinearGradient(0, 0, 0, 52);
+  edgeTop.addColorStop(0, 'rgba(139, 74, 43, 0.72)');
+  edgeTop.addColorStop(1, 'rgba(139, 74, 43, 0)');
+  hwCtx.fillStyle = edgeTop;
+  hwCtx.fillRect(0, 0, 1024, 52);
+
+  const edgeBot = hwCtx.createLinearGradient(0, 460, 0, 512);
+  edgeBot.addColorStop(0, 'rgba(139, 74, 43, 0)');
+  edgeBot.addColorStop(1, 'rgba(139, 74, 43, 0.72)');
+  hwCtx.fillStyle = edgeBot;
+  hwCtx.fillRect(0, 460, 1024, 52);
+
+  // Faded edge white lines + dashed center yellow line
+  hwCtx.fillStyle = 'rgba(235, 238, 240, 0.58)';
+  hwCtx.fillRect(0, 36, 1024, 8);
+  hwCtx.fillRect(0, 468, 1024, 8);
+
+  hwCtx.fillStyle = 'rgba(240, 198, 72, 0.85)';
+  for (let sx = 24; sx < 1024; sx += 160) {
+    hwCtx.fillRect(sx, 250, 92, 12);
+  }
+  const jinjaHighwayTarmac = finalizeTexture(hwC, maxAnisotropy, 6, 1);
+
+  // 2c. Interlocking concrete sidewalk pavers
+  const [pavC, pavCtx] = makeCanvas(256, 256);
+  pavCtx.fillStyle = '#8b8680';
+  pavCtx.fillRect(0, 0, 256, 256);
+  const tones = ['#948e87', '#867f78', '#9f968d', '#7c7670'];
+  const rowH = 32;
+  const colW = 64;
+  for (let row = 0; row < 8; row++) {
+    const offset = row % 2 === 0 ? 0 : colW / 2;
+    for (let col = -1; col < 5; col++) {
+      const x = col * colW + offset;
+      const y = row * rowH;
+      pavCtx.fillStyle = tones[(row * 3 + col + 4) % tones.length];
+      pavCtx.fillRect(x + 2, y + 2, colW - 4, rowH - 4);
+    }
+  }
+  for (let i = 0; i < 1000; i++) {
+    pavCtx.fillStyle = 'rgba(139, 74, 43, 0.14)';
+    pavCtx.fillRect(Math.random() * 256, Math.random() * 256, 3, 2);
+  }
+  const paverTiles = finalizeTexture(pavC, maxAnisotropy, 5, 2);
 
   // 3. Corrugated galvanized iron sheet (Mabati)
   const [mabatiC, mabatiCtx] = makeCanvas(512, 512);
@@ -86,10 +204,14 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
     mabatiCtx.fillStyle = grad;
     mabatiCtx.fillRect(x, 0, 16, 512);
   }
-  // Subtle rust patina streaks
-  for (let i = 0; i < 45; i++) {
-    mabatiCtx.fillStyle = 'rgba(136, 67, 32, 0.22)';
-    mabatiCtx.fillRect(Math.random() * 512, Math.random() * 512, 6 + Math.random() * 24, 30 + Math.random() * 80);
+  for (let i = 0; i < 55; i++) {
+    mabatiCtx.fillStyle = 'rgba(136, 67, 32, 0.24)';
+    mabatiCtx.fillRect(
+      Math.random() * 512,
+      Math.random() * 512,
+      6 + Math.random() * 24,
+      30 + Math.random() * 80,
+    );
   }
   const mabatiRoof = finalizeTexture(mabatiC, maxAnisotropy, 2, 1);
 
@@ -125,7 +247,6 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   const [menuC, menuCtx] = makeCanvas(512, 512);
   menuCtx.fillStyle = '#181412';
   menuCtx.fillRect(0, 0, 512, 512);
-  // Ugandan Flag Accent Stripes at top
   menuCtx.fillStyle = '#111111';
   menuCtx.fillRect(16, 16, 480, 14);
   menuCtx.fillStyle = '#fcdc04';
@@ -140,11 +261,11 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   menuCtx.fillStyle = '#fcdc04';
   menuCtx.font = 'bold 46px sans-serif';
   menuCtx.textAlign = 'center';
-  menuCtx.fillText('KAMPALA ROLEX', 256, 114);
+  menuCtx.fillText('KIREKA ROLEX', 256, 114);
 
   menuCtx.fillStyle = '#f6efe2';
   menuCtx.font = '600 22px sans-serif';
-  menuCtx.fillText('FRESH CHAPATI & EGGS · HOT OFF THE TAVA', 256, 148);
+  menuCtx.fillText('FRESH CHAPATI & EGGS · JINJA RD', 256, 148);
 
   menuCtx.textAlign = 'left';
   const menuLines = [
@@ -170,7 +291,7 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   }
   const menuBoard = finalizeTexture(menuC, maxAnisotropy, 1, 1);
 
-  // 7. Stall Banner Signboard ("KAMPALA'S FINEST ROLEX")
+  // 7. Stall Banner Signboard
   const [banC, banCtx] = makeCanvas(1024, 256);
   banCtx.fillStyle = '#b91c1c';
   banCtx.fillRect(0, 0, 1024, 256);
@@ -181,12 +302,12 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   banCtx.fillStyle = '#fcdc04';
   banCtx.fillRect(0, 224, 1024, 32);
   banCtx.fillStyle = '#ffffff';
-  banCtx.font = '800 84px sans-serif';
+  banCtx.font = '800 80px sans-serif';
   banCtx.textAlign = 'center';
-  banCtx.fillText('ROLEX EMPIRE · KAMPALA', 512, 146);
+  banCtx.fillText('ROLEX EMPIRE · KIREKA', 512, 146);
   banCtx.fillStyle = '#fef3c7';
-  banCtx.font = '600 32px sans-serif';
-  banCtx.fillText('ROLLED EGGS & CHAPATI · SERVED HOT DAILY', 512, 198);
+  banCtx.font = '600 30px sans-serif';
+  banCtx.fillText('JINJA ROAD · FRESH CHAPATI & ROLLED EGGS DAILY', 512, 198);
   const ugandaSignBanner = finalizeTexture(banC, maxAnisotropy, 1, 1);
 
   // 8. East African Kitenge print fabric
@@ -254,9 +375,66 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
   shCtx.fillRect(0, 0, 256, 256);
   const contactShadow = finalizeTexture(shC, maxAnisotropy, 1, 1);
 
+  // 12. Kireka Commercial Shopfront Signboards
+  const signHardware = makeSignTexture(
+    maxAnisotropy,
+    '#1e3a8a',
+    '#172554',
+    '#facc15',
+    'KIREKA HARDWARE',
+    'CEMENT · IRON SHEETS · PAINTS · TOOLS',
+  );
+  const signWholesaleDuka = makeSignTexture(
+    maxAnisotropy,
+    '#14532d',
+    '#052e16',
+    '#fde047',
+    'MUKWANO SUPER DUKA',
+    'WHOLESALE · COLD SODAS · SUGAR & FLOUR',
+  );
+  const signElectronicsSalon = makeSignTexture(
+    maxAnisotropy,
+    '#7f1d1d',
+    '#450a0a',
+    '#fef08a',
+    'KAMPALA TECH & SALON',
+    'PHONE REPAIR · BARBERSHOP · ACCESSORIES',
+  );
+  const signMobileMoney = makeSignTexture(
+    maxAnisotropy,
+    '#facc15',
+    '#111827',
+    '#b91c1c',
+    'MOBILE MONEY',
+    'DEPOSIT · WITHDRAW · AIRTIME AGENT',
+    '#111827',
+  );
+  const signKirekaMarket = makeSignTexture(
+    maxAnisotropy,
+    '#111827',
+    '#15803d',
+    '#fcdc04',
+    'KIREKA MAIN MARKET',
+    'MATOOKE · TOMATOES · FRESH PRODUCE',
+  );
+
+  // 13. Soft radial steam/smoke sprite texture
+  const [smC, smCtx] = makeCanvas(128, 128);
+  const smGrad = smCtx.createRadialGradient(64, 64, 6, 64, 64, 60);
+  smGrad.addColorStop(0, 'rgba(255, 250, 240, 0.9)');
+  smGrad.addColorStop(0.5, 'rgba(255, 248, 235, 0.4)');
+  smGrad.addColorStop(1, 'rgba(255, 248, 235, 0)');
+  smCtx.fillStyle = smGrad;
+  smCtx.fillRect(0, 0, 128, 128);
+  const smokeSprite = finalizeTexture(smC, maxAnisotropy, 1, 1);
+  smokeSprite.wrapS = THREE.ClampToEdgeWrapping;
+  smokeSprite.wrapT = THREE.ClampToEdgeWrapping;
+
   return {
     lateriteSoil,
     kampalaTarmac,
+    jinjaHighwayTarmac,
+    paverTiles,
     mabatiRoof,
     woodCounter,
     castIronTava,
@@ -266,5 +444,11 @@ export function createProceduralTextures(maxAnisotropy: number): ProceduralTextu
     omeletteSurface,
     contactShadow,
     ugandaSignBanner,
+    signHardware,
+    signWholesaleDuka,
+    signElectronicsSalon,
+    signMobileMoney,
+    signKirekaMarket,
+    smokeSprite,
   };
 }
