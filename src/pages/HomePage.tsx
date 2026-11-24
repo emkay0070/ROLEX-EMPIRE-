@@ -112,10 +112,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            <p className="text-xs text-[#b8afa3] leading-relaxed">
-              Plays directly in desktop and mobile browsers with mouse, touch, or keyboard controls.
-              No downloads or accounts required.
-            </p>
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <p className="text-xs text-[#b8afa3] leading-relaxed">
+                Saved locally via IndexedDB in desktop and mobile browsers.
+              </p>
+              <button
+                type="button"
+                onClick={() => onNavigate('/owner')}
+                className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-white/8 hover:bg-white/15 border border-white/10 text-xs font-semibold text-[#fcdc04] whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+              >
+                Owner&apos;s Ledger
+              </button>
+            </div>
           </div>
         </div>
       </section>

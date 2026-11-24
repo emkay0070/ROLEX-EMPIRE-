@@ -4,6 +4,7 @@ import { Menu, X } from 'lucide-react';
 export type AppRoute =
   | '/'
   | '/play'
+  | '/owner'
   | '/how-to-play'
   | '/about'
   | '/privacy-policy'
@@ -140,6 +141,13 @@ export const SiteLayout: React.FC<SiteLayoutProps> = ({
               className="hover:text-white transition-colors"
             >
               Play Game
+            </a>
+            <a
+              href="/owner"
+              onClick={(e) => handleLinkClick(e, '/owner')}
+              className="hover:text-white transition-colors"
+            >
+              Owner Ledger
             </a>
             {NAV_LINKS.map((item) => (
               <a

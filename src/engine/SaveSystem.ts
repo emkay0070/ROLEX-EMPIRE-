@@ -251,3 +251,83 @@ export async function getPersistenceSummary(): Promise<PersistenceSummary> {
     lastSavedAt: profile?.updatedAt ?? null,
   };
 }
+
+export interface CareerArchivePayload {
+  schemaVersion: number;
+  exportedAt: string;
+  profile: SaveData;
+  shifts: ShiftRecord[];
+  orders: OrderLedgerRecord[];
+  upgrades: UpgradePurchaseRecord[];
+}
+
+export async function exportCareerArchive(): Promise<CareerArchivePayload> {
+  const [profile, shifts, orders, upgrades] = await Promise.all([
+    hydrateSaveDataAsync(),
+    loadShiftHistory(),
+    loadOrderLedger(1000),
+    loadUpgradeLog(),
+  ]);
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    profile,
+    shifts,
+    orders,
+    upgrades,
+  };
+}
+
+export async function importCareerArchive(rawJson: string): Promise<SaveData> {
+  const parsed = JSON.parse(rawJson) as Partial<CareerArchivePayload> & Partial<SaveData>;
+  const candidateProfile =
+    parsed && typeof parsed === 'object' && parsed.profile && typeof parsed.profile === 'object'
+      ? parsed.profile
+      : parsed;
+
+  if (
+    !candidateProfile ||
+    typeof candidateProfile.cashUgx !== 'number' ||
+    typeof candidateProfile.xp !== 'number'
+  ) {
+    throw new Error('Invalid Rolex Empire backup file format.');
+  }
+
+  const normalized = normalizeSave(candidateProfile);
+  hydrationFinished = true;
+  hydrationPromise = Promise.resolve(normalized);
+  writeLocalStorage(normalized);
+
+  await idbClearAllStores();
+  await idbPutProfile({
+    id: 'active_save',
+    schemaVersion: SCHEMA_VERSION,
+    updatedAt: Date.now(),
+    migratedFromLocalStorage: false,
+    data: normalized,
+  });
+
+  if (Array.isArray(parsed.shifts)) {
+    for (const s of parsed.shifts) {
+      if (s && typeof s.id === 'string' && typeof s.shiftNumber === 'number') {
+        await idbAddShiftRecord(s);
+      }
+    }
+  }
+  if (Array.isArray(parsed.orders)) {
+    for (const o of parsed.orders) {
+      if (o && typeof o.id === 'string' && typeof o.recipeId === 'string') {
+        await idbAddOrderRecord(o);
+      }
+    }
+  }
+  if (Array.isArray(parsed.upgrades)) {
+    for (const u of parsed.upgrades) {
+      if (u && typeof u.id === 'string' && typeof u.upgradeId === 'string') {
+        await idbAddUpgradeRecord(u);
+      }
+    }
+  }
+
+  return normalized;
+}

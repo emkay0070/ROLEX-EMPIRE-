@@ -10,9 +10,14 @@ const LazyGameView = lazy(() =>
   import('./components/GameView').then((mod) => ({ default: mod.GameView })),
 );
 
+const LazyOwnerDashboard = lazy(() =>
+  import('./pages/OwnerDashboardPage').then((mod) => ({ default: mod.OwnerDashboardPage })),
+);
+
 const VALID_ROUTES = new Set<AppRoute>([
   '/',
   '/play',
+  '/owner',
   '/how-to-play',
   '/about',
   '/privacy-policy',
@@ -21,7 +26,8 @@ const VALID_ROUTES = new Set<AppRoute>([
 
 const ROUTE_TITLES: Record<AppRoute, string> = {
   '/': 'Rolex Empire — 3D Ugandan Street-Food Simulation',
-  '/play': 'Play Rolex Empire — Kampala Roadside Stall',
+  '/play': 'Play Rolex Empire — Kireka Roadside Stall',
+  '/owner': "Owner's Ledger — Rolex Empire",
   '/how-to-play': 'How to Play — Rolex Empire',
   '/about': 'About — Rolex Empire',
   '/privacy-policy': 'Privacy Policy — Rolex Empire',
@@ -71,12 +77,27 @@ export default function App() {
           <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#14110f] text-[#f7f3eb] p-6">
             <p className="font-display text-2xl font-extrabold text-[#fcdc04]">Rolex Empire</p>
             <p className="text-sm text-[#c7bdb1] mt-2">
-              Preparing your Kampala roadside stall...
+              Preparing your Kireka roadside stall...
             </p>
           </div>
         }
       >
         <LazyGameView onNavigate={navigate} />
+      </Suspense>
+    );
+  }
+
+  if (route === '/owner') {
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex flex-col items-center justify-center bg-[#14110f] text-[#f7f3eb] p-6">
+            <p className="font-display text-2xl font-extrabold text-[#fcdc04]">Rolex Empire</p>
+            <p className="text-sm text-[#c7bdb1] mt-2">Loading Owner Operations Ledger...</p>
+          </div>
+        }
+      >
+        <LazyOwnerDashboard onNavigate={navigate} />
       </Suspense>
     );
   }

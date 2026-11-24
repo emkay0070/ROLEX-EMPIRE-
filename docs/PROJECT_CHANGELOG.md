@@ -6,6 +6,23 @@ All notable planning, research, architecture, asset, and code changes for **ROLE
 
 ---
 
+## [2026-11-24 (Update 5)] — Milestone 2 Push (`1c5e96a`) & Milestone 3: Private Owner's Dashboard (`/owner`)
+
+- **Milestone / Task:** Push Milestone 2 (`1c5e96a`) to GitHub + Implement & Push Milestone 3 (Private Owner's Dashboard)
+- **What Changed:**
+  - Committed and pushed Milestone 2 IndexedDB persistence (`rolex_empire_db`) to `origin/main` as commit `1c5e96a`.
+  - Created `src/pages/OwnerDashboardPage.tsx`: full-viewport, AdSense-free Owner Operations Ledger at `/owner` backed exclusively by IndexedDB (`profile`, `shift_history`, `order_ledger`, `upgrade_log`) with desktop left sidebar + mobile tab switcher across `Overview`, `Shifts`, `Orders`, and `Data & Upgrades`.
+  - Built live analytics directly from persisted IndexedDB records: 4 KPI cards, 10-shift net profit trend bar chart, Revenue by Rolex Recipe breakdown, Customer Traffic Breakdown, searchable shift history, quality-filtered & searchable order ledger, installed equipment & capital expenditure log, CSV accounting export, JSON backup/restore, and two-step confirmed reset.
+  - Upgraded `src/engine/SaveSystem.ts`: added `CareerArchivePayload`, `exportCareerArchive()`, and validated `importCareerArchive(rawJson)` restoring all 4 IndexedDB stores and `localStorage` atomically.
+  - Wired `/owner` lazy route in `src/App.tsx`, added `"Owner's Ledger"` button on `src/pages/HomePage.tsx`, and added a quiet `"Owner Ledger"` footer link in `src/components/SiteLayout.tsx`.
+  - Added `docs/milestones/2026-11-24-owner-dashboard.md` and updated `docs/ROLEX_EMPIRE_MASTER.md`.
+- **Files / Systems Affected:** `src/pages/{OwnerDashboardPage.tsx,HomePage.tsx}`, `src/engine/SaveSystem.ts`, `src/components/SiteLayout.tsx`, `src/App.tsx`, `docs/`.
+- **What Was Tested:** `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`), and `git diff` protection check (`public/ads.txt`, `index.html`, `vercel.json`, `package.json`, `src/data/recipes.ts`).
+- **Test Results:** TypeScript check and Vite production bundle succeeded cleanly; protected AdSense/deployment/recipe files verified untouched. Live desktop/mobile browser check recommended post-deploy (no headless Chromium binary in sandbox).
+- **Next Recommended Action:** Inspect live Vercel deploy across `/`, `/play`, and `/owner` on desktop and mobile; supply external `.glb` assets when ready; keep Supabase/cloud sync deferred until requested.
+
+---
+
 ## [2026-11-24 (Update 4)] — Milestone 1 Push (`d767b3e`) & Milestone 2: IndexedDB Local Persistence
 
 - **Milestone / Task:** Push Milestone 1 to GitHub + Implement Milestone 2 (Structured IndexedDB Persistence)

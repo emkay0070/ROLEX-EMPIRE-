@@ -91,7 +91,7 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 
 ## 5. Existing Routes, Screens, Camera Systems & Interactions
 
-- **Routes (`src/App.tsx`, `src/components/SiteLayout.tsx`):** `/` (Home), `/play` (3D Viewport), `/how-to-play`, `/about`, `/privacy-policy`, `/contact`.
+- **Routes (`src/App.tsx`, `src/components/SiteLayout.tsx`):** `/` (Home), `/play` (3D Viewport), `/owner` (Private Owner's Ledger Dashboard — lazy-loaded, AdSense-free), `/how-to-play`, `/about`, `/privacy-policy`, `/contact`.
 - **Camera Presets (`CAMERA_PRESETS` in `RolexGameEngine.ts`):**
   - `overview`: pos `(0.42, 3.32, 6.45)`, target `(0, 1.05, 0.35)` (frames the hero stall, sidewalk, storm drain, Jinja Road foreground traffic, commercial shopfronts, railway reserve, market sheds, and Kireka Hill)
   - `tava`: pos `(-0.15, 2.05, 1.42)`, target `(-0.15, 1.15, 0.02)`
@@ -110,7 +110,7 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
   - `order_ledger`: stores every served/missed `OrderLedgerRecord` (`by_timestamp`, `by_recipe` indexes).
   - `upgrade_log`: stores `UpgradePurchaseRecord` purchases (`by_timestamp` index).
 - **Schema (`SaveData`):** `cashUgx` (default `5000`), `totalLifetimeUgx`, `xp`, `level`, `shiftCount`, `ordersCompletedTotal`, `satisfactionRating` (`88`), `upgrades`, `employeeHired`, `bestShiftProfitUgx`, `soundMuted`.
-- **Migration & Race Protection:** `hydrateSaveDataAsync()` runs on `HomePage` and `GameView` mount, automatically migrates legacy `rolex_empire_save_v1` data into IndexedDB with zero loss, picks the higher-progress snapshot if both exist, and serializes writes/resets via `writeQueue`.
+- **Migration, Race Protection & Backup (`src/engine/SaveSystem.ts`):** `hydrateSaveDataAsync()` runs on `HomePage`, `GameView`, and `OwnerDashboardPage` mount, automatically migrates legacy `rolex_empire_save_v1` data into IndexedDB with zero loss, picks the higher-progress snapshot if both exist, and serializes writes/resets via `writeQueue`. `exportCareerArchive()` and `importCareerArchive(rawJson)` provide full JSON backup/restore across `profile`, `shift_history`, `order_ledger`, and `upgrade_log`.
 
 ---
 
@@ -155,10 +155,10 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 ### Approved Roadmap Sequence
 1. **MILESTONE 1 — Kireka Environment Reconstruction (COMMITTED & PUSHED `d767b3e` — Browser Visual Inspection Pending):**
    - Modular 3D Construction (`DistrictManager`, `EnvironmentMaterials`, `TrafficSystem`, `AssetManager` Draco/Box3, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts` Kireka labels) -> `tsc --noEmit` & `vite build` passed -> pushed to `origin/main`.
-2. **MILESTONE 2 — IndexedDB Local Persistence (IMPLEMENTED & COMPILED):**
+2. **MILESTONE 2 — IndexedDB Local Persistence (COMMITTED & PUSHED `1c5e96a`):**
    - Structured `rolex_empire_db` (`profile`, `shift_history`, `order_ledger`, `upgrade_log`) cleanly migrating `rolex_empire_save_v1` with zero data loss and wired into `GameView.tsx` & `HomePage.tsx`.
-3. **MILESTONE 3 — Private Owner's Dashboard (NEXT UP — Awaiting Authorization):**
-   - Build after Milestone 2 review, reading `shift_history`, `order_ledger`, and `upgrade_log` from IndexedDB.
+3. **MILESTONE 3 — Private Owner's Dashboard (`/owner`) (IMPLEMENTED & VERIFIED):**
+   - Lazy-loaded standalone workspace (`src/pages/OwnerDashboardPage.tsx`) backed strictly by `rolex_empire_db` (`Overview`, `Shifts`, `Orders`, `Data & Upgrades`), featuring KPI analytics, 10-shift profit chart, recipe & customer mix tables, searchable shift/order filters, CSV accounting export, JSON backup export/restore, confirmed reset, and zero AdSense ads.
 4. **EXPLICITLY DEFERRED — Supabase & Cloud Features:**
    - Supabase, authentication, RLS, cloud saves, and cloud synchronization remain deferred until explicitly authorized.
 
@@ -172,30 +172,32 @@ Players run 60-second roadside shifts (`SHIFT_DURATION_SEC = 60`):
 | 2026-11-24 | **Preliminary Makerere Kivulu Audit & Continuity Docs** | Established `docs/` structure, archived preliminary Kivulu research (now superseded as starting location). |
 | 2026-11-24 | **Kireka Location Pivot, Research & Checkpoint** | Recorded git checkpoint `a57f21a144add0b9f52631481269a9c87279415e` (`checkpoint-2026-11-24-pre-kireka`), completed Kireka geographical/railway/market research, produced Kireka Revised Blueprint & Asset Integration Plan. |
 | 2026-11-24 | **Milestone 1 — Kireka 3D Environment Implementation** | Built `DistrictManager.ts`, `EnvironmentMaterials.ts`, and `TrafficSystem.ts`; upgraded `AssetManager.ts`, `ProceduralTextures.ts`, `StallBuilder.ts`, `CustomerSystem.ts`, `RolexGameEngine.ts`, and `upgrades.ts`. Committed & pushed as `d767b3e`. |
-| 2026-11-24 | **Milestone 2 — IndexedDB Local Persistence** | Created `IndexedDbStore.ts` (`rolex_empire_db` v1 with 4 object stores), upgraded `SaveSystem.ts` with automatic `rolex_empire_save_v1` migration & write queue, added ledger types in `types/game.ts`, and wired `GameView.tsx` & `HomePage.tsx`. |
+| 2026-11-24 | **Milestone 2 — IndexedDB Local Persistence** | Created `IndexedDbStore.ts` (`rolex_empire_db` v1 with 4 object stores), upgraded `SaveSystem.ts` with automatic `rolex_empire_save_v1` migration & write queue, added ledger types in `types/game.ts`, and wired `GameView.tsx` & `HomePage.tsx`. Committed & pushed as `1c5e96a`. |
+| 2026-11-24 | **Milestone 3 — Private Owner's Dashboard (`/owner`)** | Built `OwnerDashboardPage.tsx` (`Overview`, `Shifts`, `Orders`, `Data & Upgrades`), added `CareerArchivePayload` + `exportCareerArchive`/`importCareerArchive` in `SaveSystem.ts`, added `/owner` routing in `App.tsx`, and added navigation entry points in `HomePage.tsx` and `SiteLayout.tsx` footer. |
 
 ---
 
 ## 13. Current Development Status
 
 - **Implemented & Pushed (`d767b3e`):** Milestone 1 Kireka 3D environment (`DistrictManager`, `TrafficSystem`, `EnvironmentMaterials`, `AssetManager`, `ProceduralTextures`, `StallBuilder`, `RolexGameEngine`, `upgrades.ts`).
-- **Implemented & Compiled (Milestone 2):** Structured IndexedDB persistence (`IndexedDbStore.ts`, `SaveSystem.ts`, `GameView.tsx`, `HomePage.tsx`, `types/game.ts`).
-- **Not Started:** Milestone 3 Owner's Dashboard (next), Supabase/cloud features (deferred).
+- **Implemented & Pushed (`1c5e96a`):** Milestone 2 structured IndexedDB persistence (`IndexedDbStore.ts`, `SaveSystem.ts`, `GameView.tsx`, `HomePage.tsx`, `types/game.ts`).
+- **Implemented & Compiled (Milestone 3):** Private Owner's Dashboard at `/owner` (`OwnerDashboardPage.tsx`, `SaveSystem.ts`, `App.tsx`, `HomePage.tsx`, `SiteLayout.tsx`).
+- **Deferred:** Supabase, authentication, RLS, cloud sync (explicitly out of scope unless requested later).
 
 ---
 
 ## 14. Current Priority & Immediate Next Tasks
 
-1. Verify IndexedDB persistence & Kireka 3D viewport on desktop/mobile browsers (confirming `rolex_empire_db` stores populate across shifts, orders, and upgrades).
-2. Drop any owner-supplied `.glb` models into `/public/assets/models/` and bind `glbUrl` entries in `AssetManager.ts`.
-3. Proceed to **Milestone 3 (Private Owner's Dashboard)** when authorized.
+1. Visually test the Kireka 3D viewport (`/play`), IndexedDB persistence (`rolex_empire_db`), and Private Owner's Dashboard (`/owner`) on live desktop and mobile browsers (including CSV export and JSON backup/restore).
+2. Drop any owner-supplied `.glb` models into `/public/assets/models/` and bind `glbUrl` entries in `AssetManager.ts` when ready.
+3. Keep Supabase / cloud synchronization deferred until explicitly authorized by the project owner.
 
 ---
 
 ## 15. Deferred Features & Explicitly Out-of-Scope Work
 
-- IndexedDB (Milestone 2), Owner's Dashboard (Milestone 3), Supabase / Auth / RLS / Cloud Sync (Deferred).
-- Modifying gameplay mechanics, HUD layout, routes, `vercel.json`, `public/ads.txt`, or AdSense configuration.
+- Supabase / Auth / RLS / Cloud Sync (Explicitly Deferred).
+- Modifying gameplay mechanics, HUD layout, `vercel.json`, `public/ads.txt`, or AdSense configuration.
 
 ---
 
